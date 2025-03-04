@@ -1,0 +1,350 @@
+
+CREATE TABLE operators (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            password TEXT NOT NULL,
+            contact1 TEXT,
+            contact2 TEXT,
+            address1 TEXT,
+            address2 TEXT,
+            email1 TEXT,
+            email2 TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        , acteur_type_id TEXT REFERENCES acteurs_type(id), project_id TEXT REFERENCES projects(id))
+
+CREATE TABLE action_logs (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            action TEXT NOT NULL,
+            target_table TEXT NOT NULL,
+            target_record_id TEXT,
+            action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+
+CREATE TABLE roles (
+            id TEXT PRIMARY KEY,
+            role_name TEXT NOT NULL,
+            description TEXT
+        )
+
+CREATE TRIGGER update_user_timestamp 
+        AFTER UPDATE ON users
+        BEGIN
+            UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END
+
+CREATE TRIGGER update_operator_timestamp 
+        AFTER UPDATE ON operators
+        BEGIN
+            UPDATE operators SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END
+
+CREATE TABLE administrators (
+                    phone TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    email TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+
+CREATE TABLE regions (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME
+)
+
+CREATE TABLE departements (
+    id TEXT PRIMARY KEY,
+    region_id TEXT NOT NULL,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+)
+
+CREATE TABLE sous_prefectures (
+    id TEXT PRIMARY KEY,
+    departement_id TEXT NOT NULL,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (departement_id) REFERENCES departements(id)
+)
+
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    description TEXT,
+    date_debut DATE,
+    date_fin DATE,
+    statut TEXT,
+    budget REAL,
+    region_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+)
+
+CREATE TABLE postes (
+    id TEXT PRIMARY KEY,
+    titre TEXT NOT NULL,
+    categorie TEXT NOT NULL,
+    description TEXT,
+    niveau_experience TEXT,
+    responsabilites TEXT,
+    competences_requises TEXT,
+    departement TEXT,  -- Pour organiser les postes par département fonctionnel
+    statut TEXT DEFAULT 'Actif',  -- Pour gérer si le poste est actif ou non
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME
+, type_poste_id INTEGER REFERENCES type_poste(id))
+
+CREATE TABLE acteurs_type (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME
+)
+
+CREATE TABLE project_regions (
+    project_id TEXT,
+    region_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, region_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+)
+
+CREATE TABLE employees (
+    id TEXT PRIMARY KEY,
+    operator_id TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    birth_date DATE,
+    gender TEXT,
+    position TEXT,
+    contact TEXT,
+    contract_duration INTEGER,
+    additional_info TEXT,
+    region_id TEXT,
+    departement_id TEXT,
+    sous_prefecture_id TEXT,
+    ecole_id TEXT,  -- Changé de ecole (texte) à ecole_id (référence)
+    diplome_id TEXT,
+    poste_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME, superviseur_id TEXT REFERENCES superviseurs(id),
+    FOREIGN KEY (operator_id) REFERENCES operators(id),
+    FOREIGN KEY (region_id) REFERENCES regions(id),
+    FOREIGN KEY (departement_id) REFERENCES departements(id),
+    FOREIGN KEY (sous_prefecture_id) REFERENCES sous_prefectures(id),
+    FOREIGN KEY (ecole_id) REFERENCES ecoles(id),
+    FOREIGN KEY (diplome_id) REFERENCES diplomes(id),
+    FOREIGN KEY (poste_id) REFERENCES postes(id)
+)
+
+CREATE TABLE operator_projects (
+    operator_id TEXT,
+    project_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (operator_id, project_id),
+    FOREIGN KEY (operator_id) REFERENCES operators(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+)
+
+CREATE TABLE sqlite_sequence(name,seq)
+
+CREATE TABLE diplomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE
+        )
+
+CREATE TABLE ecoles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            sigle TEXT NOT NULL UNIQUE
+        )
+
+CREATE TABLE type_poste (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fonction TEXT NOT NULL
+)
+
+CREATE TABLE migrations (
+                name TEXT PRIMARY KEY,
+                executed_at TEXT NOT NULL
+            )
+
+CREATE TABLE superviseurs (
+    id TEXT PRIMARY KEY,
+    operator_id TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    birth_date DATE,
+    gender TEXT,
+    contact TEXT,
+    email TEXT,
+    position TEXT,
+    niveau_supervision TEXT, -- Par exemple: 'Senior', 'Junior'
+    zone_supervision TEXT,   -- Zone géographique supervisée
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (operator_id) REFERENCES operators(id)
+)
+
+CREATE INDEX idx_superviseur_operator ON superviseurs(operator_id)
+
+CREATE INDEX idx_employee_superviseur ON employees(superviseur_id)
+
+CREATE TRIGGER update_superviseur_timestamp 
+AFTER UPDATE ON superviseurs
+BEGIN
+    UPDATE superviseurs SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END
+
+CREATE TABLE employee_locations (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    contract_id TEXT NOT NULL,
+    region_id TEXT NOT NULL,
+    departement_id TEXT NOT NULL,
+    sous_prefecture_id TEXT NOT NULL,
+    date_debut DATE NOT NULL,
+    date_fin DATE,  -- NULL si c'est la localisation actuelle
+    motif_changement TEXT,  -- Raison du changement de localisation
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (employee_id) REFERENCES employees(id),
+    FOREIGN KEY (contract_id) REFERENCES contracts(id),
+    FOREIGN KEY (region_id) REFERENCES regions(id),
+    FOREIGN KEY (departement_id) REFERENCES departements(id),
+    FOREIGN KEY (sous_prefecture_id) REFERENCES sous_prefectures(id)
+)
+
+CREATE INDEX idx_employee_locations_employee ON employee_locations(employee_id)
+
+CREATE INDEX idx_employee_locations_contract ON employee_locations(contract_id)
+
+CREATE INDEX idx_employee_locations_dates ON employee_locations(date_debut, date_fin)
+
+CREATE TRIGGER update_employee_location_timestamp 
+AFTER UPDATE ON employee_locations
+BEGIN
+    UPDATE employee_locations SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END
+
+CREATE TRIGGER check_employee_location_dates
+BEFORE INSERT ON employee_locations
+BEGIN
+    SELECT CASE
+        WHEN EXISTS (
+            SELECT 1 FROM employee_locations
+            WHERE employee_id = NEW.employee_id
+            AND (
+                (NEW.date_debut BETWEEN date_debut AND COALESCE(date_fin, '9999-12-31'))
+                OR (COALESCE(NEW.date_fin, '9999-12-31') BETWEEN date_debut AND COALESCE(date_fin, '9999-12-31'))
+                OR (date_debut BETWEEN NEW.date_debut AND COALESCE(NEW.date_fin, '9999-12-31'))
+            )
+            AND deleted_at IS NULL
+        )
+        THEN RAISE(ABORT, 'Les dates de localisation se chevauchent pour cet employé')
+    END;
+END
+
+CREATE TRIGGER check_employee_location_date_order
+BEFORE INSERT ON employee_locations
+BEGIN
+    SELECT CASE
+        WHEN NEW.date_fin IS NOT NULL AND NEW.date_debut >= NEW.date_fin
+        THEN RAISE(ABORT, 'La date de début doit être antérieure à la date de fin')
+    END;
+END
+
+CREATE TRIGGER check_employee_location_contract_dates
+BEFORE INSERT ON employee_locations
+BEGIN
+    SELECT CASE
+        WHEN EXISTS (
+            SELECT 1 FROM contracts
+            WHERE id = NEW.contract_id
+            AND (
+                NEW.date_debut < start_date
+                OR (NEW.date_fin IS NOT NULL AND NEW.date_fin > COALESCE(end_date, '9999-12-31'))
+            )
+        )
+        THEN RAISE(ABORT, 'Les dates de localisation doivent être comprises dans la période du contrat')
+    END;
+END
+
+CREATE TABLE contracts (
+            id TEXT PRIMARY KEY,
+            employee_id TEXT NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE,
+            is_expired BOOLEAN DEFAULT FALSE,
+            expiration_reason TEXT,
+            position TEXT NOT NULL,
+            category TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME,
+            deleted_at DATETIME,
+            FOREIGN KEY (employee_id) REFERENCES employees(id)
+        )
+
+CREATE TABLE departments (
+            id TEXT PRIMARY KEY,
+            region_id TEXT NOT NULL,
+            nom TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME,
+            deleted_at DATETIME,
+            FOREIGN KEY (region_id) REFERENCES regions(id)
+        )
+
+CREATE TABLE sub_prefectures (
+            id TEXT PRIMARY KEY,
+            department_id TEXT NOT NULL,
+            nom TEXT NOT NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME,
+            deleted_at DATETIME,
+            FOREIGN KEY (department_id) REFERENCES departments(id)
+        )
+
+CREATE TABLE school_projects (
+            school_id INTEGER,
+            project_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (school_id, project_id),
+            FOREIGN KEY (school_id) REFERENCES ecoles(id),
+            FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+
+CREATE TABLE schools (
+	id VARCHAR NOT NULL, 
+	nom VARCHAR NOT NULL, 
+	password VARCHAR NOT NULL, 
+	contact VARCHAR, 
+	address VARCHAR, 
+	email VARCHAR, 
+	created_at DATETIME DEFAULT (CURRENT_TIMESTAMP), 
+	updated_at DATETIME DEFAULT (CURRENT_TIMESTAMP), 
+	PRIMARY KEY (id)
+)

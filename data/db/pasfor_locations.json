@@ -1,0 +1,41 @@
+{
+    "regions": {
+        "GBEKE": {
+            "departments": {
+                "BEOUMI": ["BEOUMI"],
+                "BOTRO": ["BOTRO"],
+                "BOUAKE": ["BOUAKE"],
+                "SAKASSOU": ["SAKASSOU"]
+            }
+        },
+        "HAMBOL": {
+            "departments": {
+                "DABAKALA": ["DABAKALA"],
+                "KATIOLA": ["KATIOLA"],
+                "NIAKARA": ["NIAKARA"]
+            }
+        },
+        "PORO": {
+            "departments": {
+                "DIKODOUGOU": ["DIKODOUGOU"],
+                "KORHOGO": ["KORHOGO"],
+                "M'BENGUE": ["M'BENGUE"],
+                "SINEMATIALI": ["SINEMATIALI"]
+            }
+        },
+        "TCHOLOGO": {
+            "departments": {
+                "FERKESSEDOUGOU": ["FERKESSEDOUGOU"],
+                "KONG": ["KONG"],
+                "OUANGOLODOUGOU": ["OUANGOLODOUGOU"]
+            }
+        },
+        "BAGOUE": {
+            "departments": {
+                "BOUNDIALI": ["BOUNDIALI"],
+                "KOUTO": ["KOUTO"],
+                "TENGRELA": ["TENGRELA"]
+            }
+        }
+    }
+}

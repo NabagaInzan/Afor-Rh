@@ -11,9 +11,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const savedTheme = localStorage.getItem('theme');
     const savedOpacity = localStorage.getItem('bgOpacity') || '85';
     
-    // Appliquer l'opacité sauvegardée
-    document.documentElement.style.setProperty('--bg-opacity', savedOpacity / 100);
-    bgOpacitySlider.value = savedOpacity;
+    // Appliquer l'opacité sauvegardée si le slider existe
+    if (bgOpacitySlider) {
+        document.documentElement.style.setProperty('--bg-opacity', savedOpacity / 100);
+        bgOpacitySlider.value = savedOpacity;
+    }
 
     if (savedTheme) {
         html.setAttribute('data-theme', savedTheme);
@@ -33,12 +35,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Gestionnaire de l'opacité du fond
-    bgOpacitySlider.addEventListener('input', (e) => {
-        const opacity = e.target.value / 100;
-        document.documentElement.style.setProperty('--bg-opacity', opacity);
-        localStorage.setItem('bgOpacity', e.target.value);
-    });
+    // Gestionnaire de l'opacité du fond si le slider existe
+    if (bgOpacitySlider) {
+        bgOpacitySlider.addEventListener('input', (e) => {
+            const opacity = e.target.value / 100;
+            document.documentElement.style.setProperty('--bg-opacity', opacity);
+            localStorage.setItem('bgOpacity', e.target.value);
+        });
+    }
 
     // Gestionnaire du thème personnalisé
     customThemeBtn.addEventListener('click', () => {

@@ -2,6 +2,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,7 @@ class EmployeeService:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, first_name, last_name, position, gender, contact, 
-                       birth_date, contract_duration, availability, additional_info
+                       birth_date, contract_duration, additional_info
                 FROM employees 
                 WHERE id = ?
             """, (employee_id,))
@@ -131,8 +132,7 @@ class EmployeeService:
                     'contact': employee[5],
                     'birth_date': employee[6],
                     'contract_duration': employee[7],
-                    'availability': employee[8],
-                    'additional_info': employee[9]
+                    'additional_info': employee[8]
                 }
             return None
         except Exception as e:
@@ -145,6 +145,9 @@ class EmployeeService:
             cursor = conn.cursor()
             now = datetime.now().isoformat()
             employee_id = str(uuid.uuid4())
+            
+            # Debug logs
+            print("Début de add_employee avec les données:", json.dumps(data, indent=2))
             
             # Formatage des noms
             first_name = self.format_first_name(data.get('first_name', ''))
@@ -165,13 +168,13 @@ class EmployeeService:
             else:
                 contract_duration = '3'
             
-            # Insérer l'employé
+            # Insérer l'employé (sans les données de localisation)
             query = """
                 INSERT INTO employees (
                     id, first_name, last_name, position, contact, gender,
-                    contract_duration, birth_date, operator_id, availability,
+                    contract_duration, birth_date, operator_id, 
                     additional_info, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             cursor.execute(query, (
@@ -184,7 +187,6 @@ class EmployeeService:
                 contract_duration,
                 data.get('birth_date'),
                 data.get('operator_id'),
-                data.get('availability'),
                 data.get('additional_info'),
                 now,
                 now
@@ -194,33 +196,49 @@ class EmployeeService:
             try:
                 start_date = datetime.fromisoformat(contract_start_date).date()
                 duration_months = int(contract_duration)
-                end_date = start_date + timedelta(days=duration_months * 30)  # Approximation mois
+                end_date = start_date + timedelta(days=duration_months * 30)
                 
-                # Déterminer le statut du contrat
-                contract_status = 'Expiré' if data.get('contract_expired') else 'En cours'
-                
+                contract_id = str(uuid.uuid4())
                 contract_query = """
                     INSERT INTO contracts (
                         id, employee_id, type, start_date, end_date,
-                        salary, department, position, status, additional_terms,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        position, category, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 
                 cursor.execute(contract_query, (
-                    str(uuid.uuid4()),
+                    contract_id,
                     employee_id,
-                    'CDD',  # Type de contrat par défaut
+                    'CDD',
                     start_date.isoformat(),
                     end_date.isoformat(),
-                    data.get('salary', 0),
-                    data.get('department', 'Non spécifié'),
                     data.get('position'),
-                    contract_status,
-                    data.get('additional_terms', ''),
+                    'Standard',
                     now,
                     now
                 ))
+
+                # Ajouter l'entrée de localisation si nécessaire
+                if data.get('location') == 'interieur' and all([data.get('region'), data.get('departement'), data.get('sousprefecture')]):
+                    location_query = """
+                        INSERT INTO employee_locations (
+                            id, employee_id, contract_id, region_id, 
+                            departement_id, sous_prefecture_id,
+                            date_debut, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """
+                    
+                    cursor.execute(location_query, (
+                        str(uuid.uuid4()),
+                        employee_id,
+                        contract_id,
+                        data.get('region'),
+                        data.get('departement'),
+                        data.get('sousprefecture'),
+                        start_date.isoformat(),
+                        now,
+                        now
+                    ))
                 
                 conn.commit()
                 return True
@@ -259,7 +277,6 @@ class EmployeeService:
                     contact = ?,
                     birth_date = ?,
                     contract_duration = ?,
-                    availability = ?,
                     additional_info = ?
                 WHERE id = ?
             """, (
@@ -270,7 +287,6 @@ class EmployeeService:
                 data.get('contact'),
                 data.get('birth_date'),
                 data.get('contract_duration'),
-                data.get('availability'),
                 data.get('additional_info'),
                 employee_id
             ))
@@ -320,14 +336,12 @@ class EmployeeService:
             
             # Employés par disponibilité
             cursor.execute("""
-                SELECT availability, COUNT(*) 
+                SELECT region_id, COUNT(*) 
                 FROM employees 
                 WHERE operator_id = ? 
-                GROUP BY availability
+                GROUP BY region_id
             """, (operator_id,))
-            availability_counts = dict(cursor.fetchall())
-            siege = availability_counts.get('Au siège', 0)
-            interieur = availability_counts.get('À l\'intérieur', 0)
+            region_counts = dict(cursor.fetchall())
             
             # Employés par genre
             cursor.execute("""
@@ -349,8 +363,7 @@ class EmployeeService:
                 'success': True,
                 'stats': {
                     'total': total,
-                    'siege': siege,
-                    'interieur': interieur,
+                    'regions': region_counts,
                     'male': male,
                     'female': female
                 }
@@ -411,17 +424,16 @@ class EmployeeService:
             cursor.execute("""
                 INSERT INTO contracts (
                     id, employee_id, type, start_date, end_date,
-                    salary, department, position, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'En cours', ?, ?)
+                    position, category, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 str(uuid.uuid4()),
                 employee_id,
                 contract_type,
                 start_date,
                 end_date,
-                last_contract['salary'],
-                last_contract['department'],
                 position or last_contract['position'],
+                'Standard',
                 datetime.now(),
                 datetime.now()
             ))

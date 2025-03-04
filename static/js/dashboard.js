@@ -309,7 +309,10 @@ function initializeRenewContractHandlers() {
             position: $('#renewPosition').val() || '',
             address: $('#renewAddress').val() || '',
             birth_date: $('#renewBirthDate').val() || '',
-            availability: $('#renewAvailability').val() || '',
+            location: $('#renewLocation').val() || '',
+            region: $('#renewRegion').val() || '',
+            departement: $('#renewDepartement').val() || '',
+            sousprefecture: $('#renewSousprefecture').val() || '',
             duration: duration || 0,
             start_date: $('#renewStartDate').val() || '',
             end_date: $('#renewEndDate').val() || '',
@@ -1037,7 +1040,10 @@ $(document).ready(function() {
                 $('#contact').val(response.contact || '');
                 $('#gender').val(response.gender || '');
                 $('#birthDate').val(response.birth_date || '');
-                $('#availability').val(response.availability || '');
+                $('#location').val(response.location || '');
+                $('#region').val(response.region || '');
+                $('#departement').val(response.departement || '');
+                $('#sousprefecture').val(response.sousprefecture || '');
                 $('#additionalInfo').val(response.additional_info || '');
                 $('#contractDuration').val(response.contract_duration || ''); // Ajout de la durée du contrat
                 
@@ -1067,11 +1073,14 @@ $(document).ready(function() {
         const formData = {
             first_name: $('#firstName').val(),
             last_name: $('#lastName').val(),
-            position: $('#position').val(),
+            position: $('#poste').val() === 'autre' ? $('#autrePoste').val() : $('#poste').val(),
             contact: $('#contact').val(),
             gender: $('#gender').val(),
             birth_date: $('#birthDate').val(),
-            availability: $('#availability').val(),
+            location: $('input[name="location"]:checked').val(),
+            region: $('#region').val(),
+            departement: $('#departement').val(),
+            sousprefecture: $('#sousprefecture').val(),
             additional_info: $('#additionalInfo').val(),
             contract_duration: $('#contractDuration').val(),
             contract_start_date: startDate,
