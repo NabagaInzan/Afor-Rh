@@ -1437,3 +1437,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // Gestionnaire pour le switch de thème
     document.querySelector('.theme-switch input[type="checkbox"]').addEventListener('change', toggleTheme);
 });
+
+// Fonction pour remplir le tableau des employés
+function populateEmployeesTable(employees) {
+    const table = $('#employeesTable').DataTable();
+    table.clear();
+
+    employees.forEach(employee => {
+        const birthDate = new Date(employee.birth_date);
+        const age = calculateAge(birthDate);
+        
+        table.row.add([
+            employee.region_nom || '-',
+            employee.departement_nom || '-',
+            employee.sous_prefecture_nom || '-',
+            employee.last_name,
+            employee.first_name,
+            employee.gender,
+            age,
+            getPosteNom(employee.position),
+            employee.contact,
+            employee.contract_status || 'Actif',
+            employee.contract_duration + ' mois',
+            `<div class="btn-group">
+                <button class="btn btn-sm btn-primary edit-employee" data-id="${employee.id}">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-danger delete-employee" data-id="${employee.id}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>`
+        ]);
+    });
+
+    table.draw();
+}

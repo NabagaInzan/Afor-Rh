@@ -202,21 +202,27 @@ class EmployeeService:
                 contract_query = """
                     INSERT INTO contracts (
                         id, employee_id, type, start_date, end_date,
-                        position, category, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        position, categorie, status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 
-                cursor.execute(contract_query, (
+                # Debug logs
+                print("Executing contract query with values:")
+                values = (
                     contract_id,
                     employee_id,
-                    'CDD',
+                    'CDD',  # type de contrat
                     start_date.isoformat(),
                     end_date.isoformat(),
                     data.get('position'),
-                    'Standard',
+                    'Standard',  # categorie par défaut
+                    'Actif',    # status par défaut
                     now,
                     now
-                ))
+                )
+                print("Values:", values)
+                
+                cursor.execute(contract_query, values)
 
                 # Ajouter l'entrée de localisation si nécessaire
                 if data.get('location') == 'interieur' and all([data.get('region'), data.get('departement'), data.get('sousprefecture')]):
@@ -228,7 +234,9 @@ class EmployeeService:
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                     
-                    cursor.execute(location_query, (
+                    # Debug logs
+                    print("Executing location query with values:")
+                    location_values = (
                         str(uuid.uuid4()),
                         employee_id,
                         contract_id,
@@ -238,13 +246,17 @@ class EmployeeService:
                         start_date.isoformat(),
                         now,
                         now
-                    ))
+                    )
+                    print("Location values:", location_values)
+                    
+                    cursor.execute(location_query, location_values)
                 
                 conn.commit()
                 return True
                 
             except Exception as e:
-                print(f"Erreur lors de la création du contrat: {str(e)}")
+                print(f"Erreur détaillée lors de la création du contrat: {str(e)}")
+                print("Type d'erreur:", type(e).__name__)
                 conn.rollback()
                 return False
                 
@@ -424,16 +436,17 @@ class EmployeeService:
             cursor.execute("""
                 INSERT INTO contracts (
                     id, employee_id, type, start_date, end_date,
-                    position, category, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    position, categorie, status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 str(uuid.uuid4()),
                 employee_id,
                 contract_type,
-                start_date,
-                end_date,
+                start_date.isoformat(),
+                end_date.isoformat(),
                 position or last_contract['position'],
                 'Standard',
+                'En cours',
                 datetime.now(),
                 datetime.now()
             ))
@@ -456,5 +469,33 @@ class EmployeeService:
             logger.error(f"Erreur lors du renouvellement du contrat : {str(e)}")
             conn.rollback()
             return False
+        finally:
+            conn.close()
+
+    def get_all_employees(self):
+        conn = self.get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT 
+                    e.*,
+                    r.nom as region_nom,
+                    d.nom as departement_nom,
+                    sp.nom as sous_prefecture_nom,
+                    c.status as contract_status,
+                    c.type as contract_type
+                FROM employees e
+                LEFT JOIN regions r ON e.region_id = r.id
+                LEFT JOIN departements d ON e.departement_id = d.id
+                LEFT JOIN sous_prefectures sp ON e.sous_prefecture_id = sp.id
+                LEFT JOIN contracts c ON e.id = c.employee_id
+                WHERE e.deleted_at IS NULL
+                ORDER BY e.created_at DESC
+            """)
+            employees = cursor.fetchall()
+            return [dict(employee) for employee in employees]
+        except Exception as e:
+            print(f"Erreur lors de la récupération des employés: {str(e)}")
+            return []
         finally:
             conn.close()
