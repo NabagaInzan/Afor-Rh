@@ -1,6 +1,6 @@
 # GeoGestion AFOR
 
-Application web de gestion des employés pour African Forest Organization (AFOR).
+Application web de gestion des employés pour AFOR.
 
 ## Fonctionnalités
 
