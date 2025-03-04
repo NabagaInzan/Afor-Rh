@@ -908,7 +908,6 @@
                                     <th>Sexe</th>
                                     <th>Âge</th>
                                     <th>Poste</th>
-                                    <th>Contact</th>
                                     <th>Statut Contrat</th>
                                     <th>Durée Contrat</th>
                                     <th>Actions</th>
@@ -1095,9 +1094,10 @@
                         </div>
                         <div class="col-md-6">
                             <div class="form-floating">
-                                <input type="tel" class="form-control" id="contact" name="contact">
-                                <label for="contact">Contact</label>
+                                <input type="tel" class="form-control" id="contact" name="contact" required pattern="[0-9]{10}">
+                                <label for="contact">Contact (Numéro de téléphone)</label>
                             </div>
+                            <div class="form-text">Format: 0123456789</div>
                         </div>
                     </div>
 
@@ -1170,17 +1170,18 @@
                             </div>
                             <small class="text-muted mt-1" id="ageText"></small>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="number" class="form-control" id="contractDuration" name="contract_duration" required min="1" value="3">
+                                <label for="contractDuration">Durée du contrat (mois)</label>
+                            </div>
+                            <small class="text-muted contract-duration-text"></small>
+                        </div>
                     </div>
                                 
                                 <!-- Durée et dates du contrat -->
                                 <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <div class="form-floating">
-                                            <input type="number" class="form-control" id="contractDuration" name="contract_duration" required min="1" value="3">
-                                            <label for="contractDuration">Durée du contrat (mois)</label>
-                                        </div>
-                                        <small class="text-muted contract-duration-text"></small>
-                                    </div>
+          
                                     <div class="col-md-6">
                                         <div class="form-floating">
                                             <input type="date" class="form-control" id="contractStartDate" name="contract_start_date">
@@ -1188,8 +1189,6 @@
                                         </div>
                                     </div>
 
-                                </div>
-                                <div class="row mb-3">
                                     <div class="col-md-6">
                                         <div class="form-floating">
                                             <input type="date" class="form-control" id="contractEndDate" readonly>

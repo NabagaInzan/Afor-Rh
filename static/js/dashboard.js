@@ -10,6 +10,7 @@ let employeesTable;
 let selectedEmployees = new Set();
 let selectedExpiredEmployees = [];
 let currentEmployeeId = null;
+let postes = [];
 
 // Fonction pour formater le nom
 function formatName(name) {
@@ -70,327 +71,191 @@ function loadStats() {
         });
 }
 
-// Fonction pour initialiser la table
-function initializeEmployeesTable() {
-    employeesTable = $('#employeesTable').DataTable({
-        language: {
-            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json'
-        },
-        select: {
-            style: 'multi',
-            selector: 'td:first-child'
-        },
-        order: [[1, 'asc']],
-        columnDefs: [
-            {
-                targets: 0,
-                orderable: false,
-                className: 'select-checkbox'
-            }
-        ],
-        ajax: {
-            url: '/api/employees',
-            dataSrc: ''
-        },
-        columns: [
-            {
-                data: null,
-                defaultContent: '',
-                orderable: false,
-                className: 'select-checkbox',
-                width: '30px'
-            },
-            { data: 'last_name' },
-            { data: 'first_name' },
-            { data: 'age' },
-            { data: 'position' },
-            { data: 'contact' },
-            { 
-                data: 'contract.status',
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        const statusClass = data === 'Expiré' ? 'text-danger' : 'text-success';
-                        return `<span class="${statusClass}">${data}</span>`;
-                    }
-                    return data;
-                }
-            },
-            { 
-                data: 'contract.duration',
-                render: function(data, type, row) {
-                    if (!data) {
-                        return row.contract_duration || 'Non spécifié';
-                    }
-                    const months = parseInt(data);
-                    if (isNaN(months)) return 'Non spécifié';
-                    
-                    const years = Math.floor(months / 12);
-                    const remainingMonths = months % 12;
-                    
-                    if (years > 0) {
-                        if (remainingMonths > 0) {
-                            return `${years} an${years > 1 ? 's' : ''} et ${remainingMonths} mois`;
-                        }
-                        return `${years} an${years > 1 ? 's' : ''}`;
-                    }
-                    return `${months} mois`;
-                }
-            },
-            { 
-                data: 'availability',
-                render: function(data) {
-                    const badgeClass = data === 'Au siège' ? 'text-dark' : 'text-dark';
-                    return `<span class="${badgeClass}">${data}</span>`;
-                }
-            },
-            {
-                data: null,
-                orderable: false,
-                render: function(data, type, row) {
-                    return `
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-info view-btn" data-id="${row.id}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-primary edit-btn" data-id="${row.id}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                }
-            }
-        ]
-    });
-
-    // Gestion de la sélection des lignes
-    employeesTable.on('select deselect', function() {
-        const selectedRows = employeesTable.rows({ selected: true }).data().toArray();
-        const expiredContracts = selectedRows.filter(row => 
-            row.contract && row.contract.status === 'Expiré'
-        );
-        
-        // Afficher/masquer les boutons d'action
-        $('#renewContractBtn').toggleClass('d-none', expiredContracts.length === 0);
-        $('#deleteSelectedBtn').toggleClass('d-none', selectedRows.length === 0);
-        
-        // Mise à jour du compteur
-        const count = selectedRows.length;
-        $('#selectionCounter').text(count > 0 ? 
-            `${count} employé${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}` : ''
-        );
-    });
-
-    // Gestionnaire pour le bouton de reconduction
-    $('#renewContractBtn').on('click', function() {
-        const selectedRows = employeesTable.rows({ selected: true }).data().toArray();
-        const expiredContracts = selectedRows.filter(row => 
-            row.contract && row.contract.status === 'Expiré'
-        );
-        
-        if (expiredContracts.length > 0) {
-            const firstEmployee = expiredContracts[0];
-            
-            // Pré-remplir le formulaire
-            $('#renewPoste').val(firstEmployee.position || '');
-            $('#renewSituation').val(firstEmployee.availability || '');
-            $('#startDate').val(new Date().toISOString().split('T')[0]);
-            
-            // Stocker les IDs
-            $('#renewContractModal')
-                .data('selectedIds', expiredContracts.map(row => row.id))
-                .modal('show');
-        }
-    });
-
-    // Gestionnaire de confirmation de reconduction
-    $('#confirmRenewBtn').on('click', function() {
-        const selectedIds = $('#renewContractModal').data('selectedIds');
-        const newDuration = $('#newDuration').val();
-        const startDate = $('#startDate').val();
-        const poste = $('#renewPoste').val();
-        const situation = $('#renewSituation').val();
-
-        if (!newDuration || !startDate || !poste || !situation || !selectedIds?.length) {
-            showAlert('Veuillez remplir tous les champs', 'danger');
+// Fonction pour charger les employés
+function loadEmployees() {
+    $.get('/api/employees', function(response) {
+        if (!response.success || !response.employees) {
+            console.error("Réponse invalide:", response);
             return;
         }
 
-        const endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + parseInt(newDuration));
+        // Initialiser DataTable si ce n'est pas déjà fait
+        let table = $('#employeesTable').DataTable();
+        if (table) {
+            table.clear().destroy();
+        }
 
-        $.ajax({
-            url: '/api/contracts/renew',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                employee_ids: selectedIds,
-                start_date: startDate,
-                end_date: endDate.toISOString().split('T')[0],
-                duration: parseInt(newDuration),
-                position: poste,
-                availability: situation
-            }),
-            success: function(response) {
-                $('#renewContractModal').modal('hide');
-                showAlert('Les contrats ont été reconduits avec succès', 'success');
-                employeesTable.ajax.reload();
+        table = $('#employeesTable').DataTable({
+            language: {
+                url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/fr-FR.json',
+                emptyTable: "Aucune donnée disponible",
+                info: "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+                infoEmpty: "Affichage de 0 à 0 sur 0 entrées",
+                infoFiltered: "(filtré de _MAX_ entrées au total)",
+                lengthMenu: "Afficher _MENU_ entrées",
+                loadingRecords: "Chargement...",
+                processing: "Traitement...",
+                search: "Rechercher:",
+                zeroRecords: "Aucun résultat trouvé",
+                paginate: {
+                    first: "Premier",
+                    last: "Dernier",
+                    next: "Suivant",
+                    previous: "Précédent"
+                }
             },
-            error: function(xhr) {
-                showAlert('Erreur lors de la reconduction des contrats', 'danger');
-                console.error('Erreur:', xhr.responseJSON);
-            }
+            responsive: true,
+            data: response.employees,
+            columns: [
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.region_nom || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.departement_nom || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.sous_prefecture_nom || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.last_name || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.first_name || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.gender || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        if (!data.birth_date) return '-';
+                        const birthDate = new Date(data.birth_date);
+                        const age = calculateAge(birthDate);
+                        return age ? age + ' ans' : '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return getPosteNom(data.position || data.poste_id) || '-';
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        const status = data.contract_state || '-';
+                        const statusClass = status === 'Expiré' ? 'text-danger' : 'text-success';
+                        return `<span class="${statusClass}">${status}</span>`;
+                    }
+                },
+                { 
+                    data: null,
+                    render: function(data) {
+                        return data.contract_duration_months ? data.contract_duration_months + ' mois' : '-';
+                    }
+                },
+                {
+                    data: null,
+                    render: function(data) {
+                        return `
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary edit-employee" data-id="${data.id}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger delete-employee" data-id="${data.id}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                    },
+                    orderable: false
+                }
+            ]
         });
+    }).fail(function(error) {
+        console.error("Erreur lors du chargement des employés:", error);
+        showAlert("Erreur lors du chargement des employés", "danger");
     });
 }
 
-// Fonction pour initialiser les gestionnaires de reconduction de contrat
-function initializeRenewContractHandlers() {
-    // Convertir la durée en années et mois
-    $('#renewDuration').on('input', function() {
-        const months = parseInt($(this).val()) || 0;
-        const years = Math.floor(months / 12);
-        const remainingMonths = months % 12;
-        let durationText = '';
-
-        if (months === 0) {
-            durationText = 'Veuillez entrer une durée';
-        } else {
-            if (years > 0) {
-                durationText += years + ' an' + (years > 1 ? 's' : '');
+// Fonction pour charger les postes
+function loadPostes() {
+    return $.get('/api/postes', function(response) {
+        try {
+            if (Array.isArray(response)) {
+                postes = response;
+            } else {
+                console.error("Format de réponse postes invalide:", response);
+                postes = [];
             }
-            if (remainingMonths > 0) {
-                if (years > 0) durationText += ' et ';
-                durationText += remainingMonths + ' mois';
-            }
+        } catch (error) {
+            console.error("Erreur lors du traitement des postes:", error);
+            postes = [];
         }
-
-        $('#durationInYears').text(durationText);
-
-        // Calculer les dates si une durée valide est entrée
-        if (months > 0) {
-            const startDate = new Date();
-            const endDate = new Date();
-            endDate.setMonth(endDate.getMonth() + months);
-            
-            // Stocker les dates calculées dans des champs cachés
-            $('#renewStartDate').val(startDate.toISOString().split('T')[0]);
-            $('#renewEndDate').val(endDate.toISOString().split('T')[0]);
-        }
+    }).fail(function(error) {
+        console.error("Erreur lors du chargement des postes:", error);
+        postes = [];
     });
+}
 
-    // Validation du formulaire avant soumission
-    $('#renewContractForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        // Vérifier si le formulaire est valide
-        if (!this.checkValidity()) {
-            e.stopPropagation();
-            $(this).addClass('was-validated');
-            return;
-        }
+// Fonction pour obtenir le titre du poste
+function getPosteNom(posteId) {
+    if (!posteId || !postes) return '-';
+    const poste = postes.find(p => p.id === posteId);
+    return poste ? poste.titre : '-';
+}
 
-        // Vérifier la durée
-        const duration = parseInt($('#renewDuration').val());
-        if (duration <= 0) {
-            showToast('La durée du contrat doit être supérieure à 0', 'error');
-            return;
-        }
+// Fonction pour calculer l'âge
+function calculateAge(birthDate) {
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    return age;
+}
 
-        // Préparer les données du formulaire
-        const formData = {
-            employee_id: $('#renewEmployeeId').val() || '',
-            first_name: $('#renewFirstName').val() || '',
-            last_name: $('#renewLastName').val() || '',
-            contact: $('#renewContact').val() || '',
-            gender: $('#renewGender').val() || '',
-            position: $('#renewPosition').val() || '',
-            address: $('#renewAddress').val() || '',
-            birth_date: $('#renewBirthDate').val() || '',
-            location: $('#renewLocation').val() || '',
-            region: $('#renewRegion').val() || '',
-            departement: $('#renewDepartement').val() || '',
-            sousprefecture: $('#renewSousprefecture').val() || '',
-            duration: duration || 0,
-            start_date: $('#renewStartDate').val() || '',
-            end_date: $('#renewEndDate').val() || '',
-            additional_info: $('#renewAdditionalInfo').val() || ''
-        };
-
-        // Envoyer la requête
-        $.ajax({
-            url: '/api/contracts/renew',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(formData),
-            success: function(response) {
-                $('#renewContractModal').modal('hide');
-                employeesTable.ajax.reload();
-                showToast('Contrat reconduit avec succès', 'success');
-            },
-            error: function(xhr) {
-                const error = xhr.responseJSON?.error || 'Erreur lors de la reconduction du contrat';
-                showToast(error, 'error');
-            }
-        });
+// Initialisation au chargement de la page
+$(document).ready(function() {
+    // Charger les données nécessaires
+    loadPostes().then(function() {
+        // Une fois les postes chargés, charger les employés
+        loadEmployees();
     });
     
-    // Gestionnaire pour le bouton de confirmation de reconduction
-    $('#confirmRenewBtn').on('click', function() {
-        const form = $('#renewContractForm')[0];
-        if (!form.checkValidity()) {
-            form.classList.add('was-validated');
-            return;
-        }
+    // Rafraîchissement automatique toutes les 30 secondes
+    setInterval(function() {
+        loadPostes().then(loadEmployees);
+    }, 30000);
+});
 
-        const data = {
-            employee_ids: selectedExpiredEmployees.map(e => e.id),
-            type: $('#renewType').val(),
-            duration: $('#renewDuration').val()
-        };
-
-        $.ajax({
-            url: '/api/employees/renew',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(data),
-            success: function(response) {
-                if (response.success) {
-                    $('#renewContractModal').modal('hide');
-                    showToast(response.message, 'success');
-                    selectedExpiredEmployees = [];
-                    employeesTable.ajax.reload();
-                } else {
-                    showToast('Erreur: ' + (response.error || 'Erreur inconnue'), 'error');
-                }
-            },
-            error: function(xhr) {
-                showToast('Erreur: ' + (xhr.responseJSON?.error || 'Erreur de connexion'), 'error');
-            }
-        });
-    });
-
-    // Réinitialiser le formulaire quand le modal est fermé
-    $('#renewContractModal').on('hidden.bs.modal', function() {
-        $('#renewContractForm')[0].reset();
-        $('#renewContractForm').removeClass('was-validated');
-        $('.is-invalid').removeClass('is-invalid');
-        $('.invalid-feedback').remove();
-        $('#renewDuration').val('');
-        $('#durationInYears').text('');
-    });
-}
-
-// Fonctions d'export
+// Fonction pour exporter les données vers Excel
 function exportToExcel(data) {
     const worksheet = XLSX.utils.json_to_sheet(data.map(row => ({
         'Nom': row.last_name,
         'Prénom': row.first_name,
         'Âge': row.age,
         'Poste': row.position,
-        'Contact': row.contact,
         'Statut Contrat': row.contract.status,
         'Durée Contrat': row.contract.duration + ' mois',
         'Situation Géographique': row.availability
@@ -405,7 +270,6 @@ function exportToExcel(data) {
         {wch: 20}, // Prénom
         {wch: 10}, // Âge
         {wch: 25}, // Poste
-        {wch: 15}, // Contact
         {wch: 15}, // Statut Contrat
         {wch: 15}, // Durée Contrat
         {wch: 20}  // Situation Géographique
@@ -415,6 +279,7 @@ function exportToExcel(data) {
     XLSX.writeFile(workbook, "Liste_Employés_PRESFOR.xlsx");
 }
 
+// Fonction pour exporter les données vers PDF
 function exportToPDF(data) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -439,7 +304,6 @@ function exportToPDF(data) {
         {header: 'Prénom', dataKey: 'prenom'},
         {header: 'Âge', dataKey: 'age'},
         {header: 'Poste', dataKey: 'poste'},
-        {header: 'Contact', dataKey: 'contact'},
         {header: 'Statut Contrat', dataKey: 'statut'},
         {header: 'Durée Contrat', dataKey: 'duree'},
         {header: 'Situation Géo.', dataKey: 'situation'}
@@ -450,7 +314,6 @@ function exportToPDF(data) {
         prenom: row.first_name,
         age: row.age,
         poste: row.position,
-        contact: row.contact,
         statut: row.contract.status,
         duree: row.contract.duration + ' mois',
         situation: row.availability
@@ -491,7 +354,6 @@ function exportToPDF(data) {
     doc.save("Liste_Employés_PRESFOR.pdf");
 }
 
-// Export de la liste des employés
 $('#exportExcel').click(function() {
     const data = employeesTable.rows().data().toArray();
     exportToExcel(data);
@@ -661,8 +523,7 @@ $('#employeesTable').on('click', '.view-btn', function(e) {
             `;
             
             response.contracts.forEach(contract => {
-                const statusClass = contract.status === 'En cours' ? 'text-success' : 
-                                  contract.status === 'Expiré' ? 'text-danger' : 'text-muted';
+                const statusClass = contract.status === 'En cours' ? 'text-success' : 'text-danger';
                                   
                 modalContent += `
                     <tr>
@@ -715,23 +576,6 @@ function renewContract(employeeId) {
 
     // Ouvrir le modal
     $('#renewContractModal').modal('show');
-}
-
-// Fonction pour calculer l'âge
-function calculateAge(birthDate) {
-    if (!birthDate) return '';
-    
-    const today = new Date();
-    const birth = new Date(birthDate);
-    
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-        age--;
-    }
-    
-    return age;
 }
 
 // Fonction pour calculer la durée entre deux dates en mois
@@ -809,12 +653,9 @@ function calculateContractEndDate(startDate, duration) {
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + months);
     
-    // Formater la date en français
-    return endDate.toLocaleDateString('fr-FR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
+    // Formater la date en YYYY-MM-DD pour l'input date
+    const endDateStr = endDate.toISOString().split('T')[0];
+    return endDateStr;
 }
 
 function formatDate(dateString) {
@@ -910,117 +751,68 @@ $('#addEmployeeModal').on('shown.bs.modal', function() {
 });
 
 $(document).ready(function() {
-    // Initialisation de DataTables
-    employeesTable = $('#employeesTable').DataTable({
+    // Initialisation de DataTable
+    $('#employeesTable').DataTable({
         language: {
-            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json'
-        },
-        select: {
-            style: 'multi',
-            selector: 'td:first-child'
-        },
-        order: [[1, 'asc']],
-        columnDefs: [
-            {
-                targets: 0,
-                orderable: false,
-                className: 'select-checkbox'
-            }
-        ],
-        ajax: {
-            url: '/api/employees',
-            dataSrc: ''
-        },
-        columns: [
-            {
-                data: null,
-                defaultContent: '',
-                orderable: false,
-                className: 'select-checkbox',
-                width: '30px'
-            },
-            { data: 'last_name' },
-            { data: 'first_name' },
-            { data: 'age' },
-            { data: 'position' },
-            { data: 'contact' },
-            { 
-                data: 'contract.status',
-                render: function(data, type, row) {
-                    if (type === 'display') {
-                        const statusClass = data === 'Expiré' ? 'text-danger' : 'text-success';
-                        return `<span class="${statusClass}">${data}</span>`;
-                    }
-                    return data;
-                }
-            },
-            { 
-                data: 'contract.duration',
-                render: function(data, type, row) {
-                    if (!data) {
-                        return row.contract_duration || 'Non spécifié';
-                    }
-                    const months = parseInt(data);
-                    if (isNaN(months)) return 'Non spécifié';
-                    
-                    const years = Math.floor(months / 12);
-                    const remainingMonths = months % 12;
-                    
-                    if (years > 0) {
-                        if (remainingMonths > 0) {
-                            return `${years} an${years > 1 ? 's' : ''} et ${remainingMonths} mois`;
-                        }
-                        return `${years} an${years > 1 ? 's' : ''}`;
-                    }
-                    return `${months} mois`;
-                }
-            },
-            { 
-                data: 'availability',
-                render: function(data) {
-                    const badgeClass = data === 'Au siège' ? 'text-dark' : 'text-dark';
-                    return `<span class="${badgeClass}">${data}</span>`;
-                }
-            },
-            {
-                data: null,
-                orderable: false,
-                render: function(data, type, row) {
-                    return `
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-info view-btn" data-id="${row.id}">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-primary edit-btn" data-id="${row.id}">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    `;
-                }
-            }
-        ]
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/fr-FR.json'
+        }
     });
 
-    // Gestion de la sélection des lignes
-    employeesTable.on('select deselect', function() {
-        const selectedRows = employeesTable.rows({ selected: true }).data().toArray();
-        const expiredContracts = selectedRows.filter(row => 
-            row.contract && row.contract.status === 'Expiré'
-        );
-        
-        // Afficher/masquer les boutons d'action
-        $('#renewContractBtn').toggleClass('d-none', expiredContracts.length === 0);
-        $('#deleteSelectedBtn').toggleClass('d-none', selectedRows.length === 0);
-        
-        // Mise à jour du compteur
-        const count = selectedRows.length;
-        $('#selectionCounter').text(count > 0 ? 
-            `${count} employé${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''}` : ''
-        );
-    });
+    // Chargement initial des employés
+    loadEmployees();
+
+    // Rafraîchissement automatique toutes les 30 secondes
+    setInterval(loadEmployees, 30000);
+
+    // Fonction pour charger les employés
+    function loadEmployees() {
+        $.ajax({
+            url: '/api/employees',
+            method: 'GET',
+            success: function(response) {
+                console.log("Données reçues:", response);
+                if (response.success && response.employees) {
+                    const table = $('#employeesTable').DataTable();
+                    table.clear();
+                    
+                    response.employees.forEach(employee => {
+                        const birthDate = new Date(employee.birth_date);
+                        const age = calculateAge(birthDate);
+                        
+                        table.row.add([
+                            employee.region_nom || '-',
+                            employee.departement_nom || '-',
+                            employee.sous_prefecture_nom || '-',
+                            employee.last_name || '-',
+                            employee.first_name || '-',
+                            employee.gender || '-',
+                            age || '-',
+                            getPosteNom(employee.position || employee.poste_id) || '-',
+                            employee.contract_state || '-',
+                            employee.contract_duration_months ? employee.contract_duration_months + ' mois' : '-',
+                            `<div class="btn-group">
+                                <button class="btn btn-sm btn-primary edit-employee" data-id="${employee.id}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger delete-employee" data-id="${employee.id}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>`
+                        ]);
+                    });
+                    
+                    table.draw();
+                } else {
+                    console.error("Erreur lors du chargement des employés:", response.error);
+                    showAlert("Erreur lors du chargement des employés", "danger");
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Erreur AJAX:", error);
+                showAlert("Erreur lors du chargement des employés", "danger");
+            }
+        });
+    }
 
     // Gestionnaire pour le bouton d'édition
     $('#employeesTable').on('click', '.edit-btn', function(e) {
@@ -1037,7 +829,6 @@ $(document).ready(function() {
                 $('#lastName').val(response.last_name || '');
                 $('#firstName').val(response.first_name || '');
                 $('#position').val(response.position || '');
-                $('#contact').val(response.contact || '');
                 $('#gender').val(response.gender || '');
                 $('#birthDate').val(response.birth_date || '');
                 $('#location').val(response.location || '');
@@ -1074,7 +865,6 @@ $(document).ready(function() {
             first_name: $('#firstName').val(),
             last_name: $('#lastName').val(),
             position: $('#poste').val() === 'autre' ? $('#autrePoste').val() : $('#poste').val(),
-            contact: $('#contact').val(),
             gender: $('#gender').val(),
             birth_date: $('#birthDate').val(),
             location: $('input[name="location"]:checked').val(),
@@ -1223,16 +1013,14 @@ $(document).ready(function() {
                 `;
                 
                 response.contracts.forEach(contract => {
-                    const statusClass = contract.status === 'En cours' ? 'text-success' : 
-                                      contract.status === 'Expiré' ? 'text-danger' : 'text-muted';
-                                      
+                    const statusClass = contract.status === 'En cours' ? 'badge bg-success' : 'badge bg-danger';
                     modalContent += `
                         <tr>
                             <td>${contract.type || ''}</td>
-                            <td>${contract.start_date || ''}</td>
-                            <td>${contract.end_date || ''}</td>
+                            <td>${formatDate(contract.start_date) || ''}</td>
+                            <td>${formatDate(contract.end_date) || ''}</td>
                             <td><span class="${statusClass}">${contract.status || ''}</span></td>
-                            <td>${contract.position || ''}</td>
+                            <td>${contract.position || 'Non spécifié'}</td>
                         </tr>
                     `;
                 });
@@ -1437,38 +1225,3 @@ document.addEventListener('DOMContentLoaded', function() {
     // Gestionnaire pour le switch de thème
     document.querySelector('.theme-switch input[type="checkbox"]').addEventListener('change', toggleTheme);
 });
-
-// Fonction pour remplir le tableau des employés
-function populateEmployeesTable(employees) {
-    const table = $('#employeesTable').DataTable();
-    table.clear();
-
-    employees.forEach(employee => {
-        const birthDate = new Date(employee.birth_date);
-        const age = calculateAge(birthDate);
-        
-        table.row.add([
-            employee.region_nom || '-',
-            employee.departement_nom || '-',
-            employee.sous_prefecture_nom || '-',
-            employee.last_name,
-            employee.first_name,
-            employee.gender,
-            age,
-            getPosteNom(employee.position),
-            employee.contact,
-            employee.contract_status || 'Actif',
-            employee.contract_duration + ' mois',
-            `<div class="btn-group">
-                <button class="btn btn-sm btn-primary edit-employee" data-id="${employee.id}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-danger delete-employee" data-id="${employee.id}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>`
-        ]);
-    });
-
-    table.draw();
-}

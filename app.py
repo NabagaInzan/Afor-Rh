@@ -207,12 +207,23 @@ def dashboard():
 @app.route('/api/employees', methods=['GET'])
 @login_required
 def get_employees():
-    """Récupère la liste des employés de l'opérateur connecté"""
     try:
-        employees = employee_service.get_employees_by_operator(session['operator_id'])
-        return jsonify(employees)
+        employee_service = EmployeeService()
+        employees = employee_service.get_all_employees()
+        
+        # Debug log
+        print("Données des employés récupérées:", employees)
+        
+        return jsonify({
+            'success': True,
+            'employees': employees
+        })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"Erreur lors de la récupération des employés: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/employees/<employee_id>', methods=['GET'])
 @login_required
@@ -1068,14 +1079,16 @@ def get_postes():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, titre as name 
+            SELECT id, titre 
             FROM postes 
             WHERE deleted_at IS NULL
             ORDER BY titre
         """)
-        postes = [dict(id=row[0], name=row[1]) for row in cursor.fetchall()]
-        return jsonify({"success": True, "data": postes})
+        postes = [{"id": row[0], "titre": row[1]} for row in cursor.fetchall()]
+        conn.close()
+        return jsonify(postes)
     except Exception as e:
+        print(f"Erreur lors de la récupération des postes: {str(e)}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/api/diplomes')

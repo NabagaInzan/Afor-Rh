@@ -50,11 +50,8 @@ class EmployeeService:
                     FROM contracts c
                 )
                 SELECT 
-                    e.id, e.first_name, e.last_name, e.position, e.contact, e.gender,
-                    CASE 
-                        WHEN e.availability = 'Disponible' THEN 'Au siège'
-                        ELSE 'À l''intérieur'
-                    END as availability,
+                    e.id, e.first_name, e.last_name, e.position as poste_id, e.contact, e.gender,
+                    e.availability,
                     e.created_at, e.updated_at, e.birth_date,
                     c.type as contract_type, c.start_date, c.end_date, c.salary,
                     c.department, 
@@ -63,9 +60,15 @@ class EmployeeService:
                         ELSE 'Expiré'
                     END as contract_status,
                     e.contract_duration,
-                    e.additional_info
+                    e.additional_info,
+                    r.nom as region_nom,
+                    d.nom as departement_nom,
+                    sp.nom as sous_prefecture_nom
                 FROM employees e
                 LEFT JOIN RankedContracts c ON e.id = c.employee_id AND c.rn = 1
+                LEFT JOIN regions r ON e.region_id = r.id
+                LEFT JOIN departements d ON e.departement_id = d.id
+                LEFT JOIN sous_prefectures sp ON e.sous_prefecture_id = sp.id
                 WHERE e.operator_id = ?
                 ORDER BY e.last_name ASC
             """
@@ -168,13 +171,15 @@ class EmployeeService:
             else:
                 contract_duration = '3'
             
-            # Insérer l'employé (sans les données de localisation)
+            # Insérer l'employé avec les données de localisation
             query = """
                 INSERT INTO employees (
                     id, first_name, last_name, position, contact, gender,
                     contract_duration, birth_date, operator_id, 
-                    additional_info, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    additional_info, created_at, updated_at,
+                    region_id, departement_id, sous_prefecture_id,
+                    availability
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             cursor.execute(query, (
@@ -189,7 +194,11 @@ class EmployeeService:
                 data.get('operator_id'),
                 data.get('additional_info'),
                 now,
-                now
+                now,
+                data.get('region'),
+                data.get('departement'),
+                data.get('sousprefecture'),
+                'À l\'intérieur' if data.get('location') == 'interieur' else 'Au siège'
             ))
             
             # Créer le contrat initial
@@ -483,13 +492,31 @@ class EmployeeService:
                     d.nom as departement_nom,
                     sp.nom as sous_prefecture_nom,
                     c.status as contract_status,
-                    c.type as contract_type
+                    c.type as contract_type,
+                    c.start_date as contract_start_date,
+                    c.end_date as contract_end_date,
+                    p.titre as poste_titre,
+                    CASE 
+                        WHEN c.end_date < date('now') THEN 'Expiré'
+                        ELSE 'En cours'
+                    END as contract_state,
+                    CAST(
+                        (julianday(c.end_date) - julianday(c.start_date)) / 30 
+                        AS INTEGER
+                    ) as contract_duration_months
                 FROM employees e
                 LEFT JOIN regions r ON e.region_id = r.id
                 LEFT JOIN departements d ON e.departement_id = d.id
                 LEFT JOIN sous_prefectures sp ON e.sous_prefecture_id = sp.id
                 LEFT JOIN contracts c ON e.id = c.employee_id
+                LEFT JOIN postes p ON e.poste_id = p.id
                 WHERE e.deleted_at IS NULL
+                AND (c.id IS NULL OR c.id = (
+                    SELECT id FROM contracts 
+                    WHERE employee_id = e.id 
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                ))
                 ORDER BY e.created_at DESC
             """)
             employees = cursor.fetchall()
