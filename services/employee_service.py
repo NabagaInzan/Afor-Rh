@@ -39,75 +39,103 @@ class EmployeeService:
             return None
 
     def get_employees_by_operator(self, operator_id):
+        """Récupère tous les employés d'un opérateur"""
+        print(f"Récupération des employés pour l'opérateur: {operator_id}")  # Debug log
+        
+        if not operator_id:
+            print("Erreur: operator_id est vide")
+            return []
+            
         conn = self.get_db_connection()
         try:
             cursor = conn.cursor()
+            
+            # Vérifier d'abord si l'opérateur existe
+            cursor.execute("SELECT id FROM operators WHERE id = ?", (operator_id,))
+            if not cursor.fetchone():
+                print(f"Erreur: Opérateur {operator_id} non trouvé")
+                return []
+            
             query = """
                 WITH RankedContracts AS (
                     SELECT 
                         c.*,
-                        ROW_NUMBER() OVER (PARTITION BY c.employee_id ORDER BY c.start_date DESC) as rn
+                        ROW_NUMBER() OVER (PARTITION BY c.employee_id ORDER BY c.start_date DESC) as rn,
+                        CASE 
+                            WHEN start_date IS NOT NULL AND end_date IS NOT NULL 
+                            THEN CAST(ROUND((julianday(end_date) - julianday(start_date)) / 30.44) AS INTEGER)
+                            ELSE NULL 
+                        END as duration_months
                     FROM contracts c
                 )
                 SELECT 
-                    e.id, e.first_name, e.last_name, e.position as poste_id, e.contact, e.gender,
-                    e.availability,
-                    e.created_at, e.updated_at, e.birth_date,
-                    c.type as contract_type, c.start_date, c.end_date, c.salary,
-                    c.department, 
-                    CASE 
-                        WHEN c.status = 'En cours' THEN 'En cours'
-                        ELSE 'Expiré'
-                    END as contract_status,
-                    e.contract_duration,
+                    e.id, 
+                    e.operator_id,  
+                    e.first_name, 
+                    e.last_name, 
+                    e.gender,
+                    e.birth_date,
+                    e.contact,
                     e.additional_info,
+                    e.availability,
+                    p.titre as poste_titre,
+                    p.id as poste_id,
                     r.nom as region_nom,
                     d.nom as departement_nom,
-                    sp.nom as sous_prefecture_nom
+                    sp.nom as sous_prefecture_nom,
+                    c.type as contract_type, 
+                    c.start_date, 
+                    c.end_date, 
+                    c.status as contract_status,
+                    c.duration_months as contract_duration_months
                 FROM employees e
                 LEFT JOIN RankedContracts c ON e.id = c.employee_id AND c.rn = 1
+                LEFT JOIN postes p ON e.poste_id = p.id
                 LEFT JOIN regions r ON e.region_id = r.id
                 LEFT JOIN departements d ON e.departement_id = d.id
                 LEFT JOIN sous_prefectures sp ON e.sous_prefecture_id = sp.id
-                WHERE e.operator_id = ?
+                WHERE e.operator_id = ? AND e.deleted_at IS NULL
                 ORDER BY e.last_name ASC
             """
+            
             cursor.execute(query, (operator_id,))
             employees = []
+            
             for row in cursor.fetchall():
                 employee = dict(row)
                 
-                # Calculer l'âge à partir de la date de naissance
-                birth_date = employee.get('birth_date')
-                age = None
-                if birth_date:
-                    try:
-                        print(f"Date de naissance trouvée: {birth_date}")  # Debug log
-                        birth_date = datetime.strptime(birth_date, '%Y-%m-%d')
-                        today = datetime.now()
-                        age = today.year - birth_date.year
-                        if today.month < birth_date.month or (today.month == birth_date.month and today.day < birth_date.day):
-                            age -= 1
-                        print(f"Âge calculé: {age}")  # Debug log
-                    except Exception as e:
-                        print(f"Erreur lors du calcul de l'âge: {str(e)}")  # Debug log
-                        age = None
-                
-                employee['age'] = age
+                # Log détaillé pour le débogage
+                print(f"Employé trouvé:")
+                print(f"  ID: {employee['id']}")
+                print(f"  Opérateur: {employee['operator_id']}")
+                print(f"  Nom: {employee['first_name']} {employee['last_name']}")
+                print(f"  Poste: {employee.get('poste_titre')}")
+                print(f"  Dates contrat: {employee.get('start_date')} - {employee.get('end_date')}")
                 
                 # Créer un sous-objet contrat
                 contract = {
                     'type': employee.pop('contract_type'),
                     'start_date': employee.pop('start_date'),
                     'end_date': employee.pop('end_date'),
-                    'salary': employee.pop('salary'),
-                    'department': employee.pop('department'),
-                    'status': employee.pop('contract_status'),
-                    'duration': employee.pop('contract_duration')
+                    'status': employee.pop('contract_status')
                 }
                 employee['contract'] = contract
+                
+                # Ajouter le titre du poste
+                employee['poste'] = employee.pop('poste_titre', '')
+                
+                if 'contract_duration_months' in employee:
+                    employee['contract_duration_months'] = str(employee['contract_duration_months']) if employee['contract_duration_months'] is not None else ''
+                
                 employees.append(employee)
+            
+            print(f"Nombre total d'employés trouvés pour l'opérateur {operator_id}: {len(employees)}")
             return employees
+            
+        except Exception as e:
+            print(f"Erreur dans get_employees_by_operator: {str(e)}")
+            return []
+            
         finally:
             conn.close()
 
@@ -118,7 +146,7 @@ class EmployeeService:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, first_name, last_name, position, gender, contact, 
-                       birth_date, contract_duration, additional_info
+                       birth_date, additional_info
                 FROM employees 
                 WHERE id = ?
             """, (employee_id,))
@@ -134,190 +162,175 @@ class EmployeeService:
                     'gender': employee[4],
                     'contact': employee[5],
                     'birth_date': employee[6],
-                    'contract_duration': employee[7],
-                    'additional_info': employee[8]
+                    'additional_info': employee[7]
                 }
             return None
         except Exception as e:
             print(f"Erreur dans get_employee_by_id: {str(e)}")
             raise e
 
-    def add_employee(self, data):
-        conn = self.get_db_connection()
+    def create_employee(self, data):
+        """Crée un nouvel employé"""
         try:
+            conn = self.get_db_connection()
             cursor = conn.cursor()
-            now = datetime.now().isoformat()
-            employee_id = str(uuid.uuid4())
-            
-            # Debug logs
-            print("Début de add_employee avec les données:", json.dumps(data, indent=2))
             
             # Formatage des noms
             first_name = self.format_first_name(data.get('first_name', ''))
             last_name = self.format_name(data.get('last_name', ''))
             
-            # Gestion de la date de début du contrat
-            contract_start_date = data.get('contract_start_date')
-            if not contract_start_date:
-                contract_start_date = datetime.now().date().isoformat()
+            # Générer un ID unique
+            employee_id = str(uuid.uuid4())
             
-            # Formatage de la durée du contrat
-            contract_duration = data.get('contract_duration')
-            if contract_duration:
-                try:
-                    contract_duration = str(int(contract_duration))
-                except (ValueError, TypeError):
-                    contract_duration = '3'
-            else:
-                contract_duration = '3'
+            print("Données reçues:", json.dumps(data, indent=2))  # Debug log
             
-            # Insérer l'employé avec les données de localisation
+            # Déterminer la position
+            position = "Non spécifié"
+            if data.get('poste_id'):
+                cursor.execute("SELECT titre FROM postes WHERE id = ?", (data.get('poste_id'),))
+                poste_result = cursor.fetchone()
+                if poste_result:
+                    position = poste_result[0]
+            
             query = """
                 INSERT INTO employees (
-                    id, first_name, last_name, position, contact, gender,
-                    contract_duration, birth_date, operator_id, 
+                    id, operator_id, first_name, last_name, 
+                    gender, birth_date, contact,
                     additional_info, created_at, updated_at,
                     region_id, departement_id, sous_prefecture_id,
-                    availability
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    poste_id, position, availability
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)
             """
             
-            cursor.execute(query, (
+            params = (
                 employee_id,
+                data.get('operator_id'),
                 first_name,
                 last_name,
-                data.get('position'),
-                data.get('contact'),
                 data.get('gender'),
-                contract_duration,
                 data.get('birth_date'),
-                data.get('operator_id'),
+                data.get('contact'),
                 data.get('additional_info'),
-                now,
-                now,
-                data.get('region'),
-                data.get('departement'),
-                data.get('sousprefecture'),
-                'À l\'intérieur' if data.get('location') == 'interieur' else 'Au siège'
-            ))
+                data.get('region_id'),
+                data.get('departement_id'),
+                data.get('sous_prefecture_id'),
+                data.get('poste_id') or None,  # Utiliser None si poste_id est vide
+                position,
+                'Au siège'
+            )
             
-            # Créer le contrat initial
-            try:
-                start_date = datetime.fromisoformat(contract_start_date).date()
-                duration_months = int(contract_duration)
-                end_date = start_date + timedelta(days=duration_months * 30)
-                
-                contract_id = str(uuid.uuid4())
+            print("Paramètres de la requête:", params)  # Debug log
+            cursor.execute(query, params)
+            
+            # Créer le contrat initial si la durée est spécifiée
+            if data.get('contract_duration_months') and data.get('contract_start_date'):
                 contract_query = """
                     INSERT INTO contracts (
-                        id, employee_id, type, start_date, end_date,
-                        position, categorie, status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, employee_id, type, start_date, end_date, status,
+                        created_at, updated_at
+                    ) VALUES (?, ?, 'CDD', ?, ?, 'En cours', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """
                 
-                # Debug logs
-                print("Executing contract query with values:")
-                values = (
-                    contract_id,
+                start_date = datetime.strptime(data['contract_start_date'], '%Y-%m-%d').date()
+                end_date = start_date + timedelta(days=int(data['contract_duration_months']) * 30)
+                
+                contract_params = (
+                    str(uuid.uuid4()),
                     employee_id,
-                    'CDD',  # type de contrat
                     start_date.isoformat(),
-                    end_date.isoformat(),
-                    data.get('position'),
-                    'Standard',  # categorie par défaut
-                    'Actif',    # status par défaut
-                    now,
-                    now
+                    end_date.isoformat()
                 )
-                print("Values:", values)
                 
-                cursor.execute(contract_query, values)
-
-                # Ajouter l'entrée de localisation si nécessaire
-                if data.get('location') == 'interieur' and all([data.get('region'), data.get('departement'), data.get('sousprefecture')]):
-                    location_query = """
-                        INSERT INTO employee_locations (
-                            id, employee_id, contract_id, region_id, 
-                            departement_id, sous_prefecture_id,
-                            date_debut, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """
-                    
-                    # Debug logs
-                    print("Executing location query with values:")
-                    location_values = (
-                        str(uuid.uuid4()),
-                        employee_id,
-                        contract_id,
-                        data.get('region'),
-                        data.get('departement'),
-                        data.get('sousprefecture'),
-                        start_date.isoformat(),
-                        now,
-                        now
-                    )
-                    print("Location values:", location_values)
-                    
-                    cursor.execute(location_query, location_values)
-                
-                conn.commit()
-                return True
-                
-            except Exception as e:
-                print(f"Erreur détaillée lors de la création du contrat: {str(e)}")
-                print("Type d'erreur:", type(e).__name__)
-                conn.rollback()
-                return False
-                
+                cursor.execute(contract_query, contract_params)
+            
+            conn.commit()
+            return {'success': True, 'id': employee_id}
+            
         except Exception as e:
-            print(f"Erreur lors de l'ajout d'un employé: {str(e)}")
-            conn.rollback()
-            return False
+            print(f"Erreur dans create_employee: {str(e)}")
+            if conn:
+                conn.rollback()
+            raise e
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def update_employee(self, employee_id, data):
-        """Met à jour un employé"""
+        """Met à jour les informations d'un employé"""
+        conn = self.get_db_connection()
         try:
-            conn = self.get_db_connection()
             cursor = conn.cursor()
             
-            # Vérifier si l'employé existe
-            cursor.execute("SELECT id FROM employees WHERE id = ?", (employee_id,))
-            if not cursor.fetchone():
-                conn.close()
-                return False
-                
-            # Mettre à jour l'employé
-            cursor.execute("""
+            print("Données reçues pour la mise à jour:", data)  # Debug log
+            
+            # Formatage des noms
+            first_name = self.format_first_name(data.get('first_name', ''))
+            last_name = self.format_name(data.get('last_name', ''))
+            
+            # Mise à jour de l'employé
+            query = """
                 UPDATE employees 
                 SET first_name = ?,
                     last_name = ?,
-                    position = ?,
+                    poste_id = ?,
                     gender = ?,
-                    contact = ?,
                     birth_date = ?,
-                    contract_duration = ?,
-                    additional_info = ?
+                    region_id = ?,
+                    departement_id = ?,
+                    sous_prefecture_id = ?,
+                    additional_info = ?,
+                    contact = ?,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
-            """, (
-                data.get('first_name'),
-                data.get('last_name'),
-                data.get('position'),
+            """
+            
+            params = (
+                first_name,
+                last_name,
+                data.get('poste_id'),
                 data.get('gender'),
-                data.get('contact'),
                 data.get('birth_date'),
-                data.get('contract_duration'),
+                data.get('region_id'),
+                data.get('departement_id'),
+                data.get('sous_prefecture_id'),
                 data.get('additional_info'),
+                data.get('contact'),
                 employee_id
-            ))
+            )
+            
+            print("Paramètres de la requête:", params)  # Debug log
+            cursor.execute(query, params)
+            
+            # Mise à jour du contrat si nécessaire
+            if data.get('contract_duration_months'):
+                contract_query = """
+                    INSERT INTO contracts (
+                        id, employee_id, type, start_date, end_date, status,
+                        created_at, updated_at
+                    ) VALUES (?, ?, 'CDD', ?, ?, 'En cours', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+                
+                start_date = datetime.now().date()
+                end_date = start_date + timedelta(days=int(data['contract_duration_months']) * 30)
+                
+                contract_params = (
+                    str(uuid.uuid4()),
+                    employee_id,
+                    start_date.isoformat(),
+                    end_date.isoformat()
+                )
+                
+                cursor.execute(contract_query, contract_params)
             
             conn.commit()
-            conn.close()
             return True
+            
         except Exception as e:
             print(f"Erreur dans update_employee: {str(e)}")
+            conn.rollback()
             raise e
+        finally:
+            conn.close()
 
     def delete_employee(self, employee_id):
         """Supprime un employé"""
@@ -458,17 +471,6 @@ class EmployeeService:
                 'En cours',
                 datetime.now(),
                 datetime.now()
-            ))
-            
-            # Mettre à jour la durée du contrat dans la table employees
-            cursor.execute("""
-                UPDATE employees 
-                SET contract_duration = ?, updated_at = ?
-                WHERE id = ?
-            """, (
-                f"{duration} mois",
-                datetime.now(),
-                employee_id
             ))
             
             conn.commit()

@@ -193,154 +193,189 @@ def login():
             conn.close()
 
 @app.route('/dashboard')
+@login_required
 def dashboard():
-    """Affiche le tableau de bord de l'opérateur"""
-    if 'operator_id' not in session:
-        return redirect(url_for('index'))
-    
-    # Récupérer le nom de l'opérateur
-    operator = auth.get_operator_by_id(session['operator_id'])
-    operator_name = operator['name'] if operator else 'Inconnu'
-    
-    return render_template('dashboard.html', operator_name=operator_name)
+    operator_id = session.get('operator_id')
+    if not operator_id:
+        return redirect(url_for('login'))
+        
+    return render_template(
+        'dashboard.html',
+        operator_id=operator_id
+    )
 
 @app.route('/api/employees', methods=['GET'])
 @login_required
 def get_employees():
+    """Récupère la liste des employés de l'opérateur connecté"""
     try:
-        employee_service = EmployeeService()
-        employees = employee_service.get_all_employees()
-        
-        # Debug log
-        print("Données des employés récupérées:", employees)
-        
-        return jsonify({
-            'success': True,
-            'employees': employees
-        })
+        operator_id = session.get('operator_id')
+        if not operator_id:
+            return jsonify({"success": False, "error": "Non autorisé"}), 401
+            
+        employees = employee_service.get_employees_by_operator(operator_id)
+        return jsonify({"success": True, "employees": employees})
     except Exception as e:
         print(f"Erreur lors de la récupération des employés: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/employees/<employee_id>', methods=['GET'])
 @login_required
 def get_employee(employee_id):
-    conn = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cur = conn.cursor()
         
-        # Récupérer les informations de l'employé
-        cursor.execute("""
-            SELECT e.*, 
-                   c.id as contract_id, 
-                   c.start_date, 
-                   c.end_date, 
-                   c.status as contract_status,
-                   c.type as contract_type
+        # Récupérer les informations de l'employé avec son dernier contrat
+        cur.execute("""
+            WITH LastContract AS (
+                SELECT 
+                    employee_id,
+                    start_date as contract_start_date,
+                    CAST(ROUND((julianday(end_date) - julianday(start_date)) / 30.44) AS INTEGER) as contract_duration_months,
+                    ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY start_date DESC) as rn
+                FROM contracts
+                WHERE deleted_at IS NULL
+            )
+            SELECT 
+                e.id,
+                e.first_name,
+                e.last_name,
+                e.birth_date,
+                e.gender,
+                e.contact,
+                e.region_id,
+                e.departement_id,
+                e.sous_prefecture_id,
+                e.poste_id,
+                c.contract_start_date,
+                c.contract_duration_months,
+                r.nom as region_nom,
+                d.nom as departement_nom,
+                sp.nom as sous_prefecture_nom,
+                p.titre as poste_nom,
+                e.operator_id
             FROM employees e
-            LEFT JOIN contracts c ON e.id = c.employee_id
-            WHERE e.id = ?
-            ORDER BY c.created_at DESC
-            LIMIT 1
+            LEFT JOIN LastContract c ON e.id = c.employee_id AND c.rn = 1
+            LEFT JOIN regions r ON e.region_id = r.id
+            LEFT JOIN departements d ON e.departement_id = d.id
+            LEFT JOIN sous_prefectures sp ON e.sous_prefecture_id = sp.id
+            LEFT JOIN postes p ON e.poste_id = p.id
+            WHERE e.id = ? AND e.deleted_at IS NULL
         """, (employee_id,))
         
-        row = cursor.fetchone()
-        if row:
-            employee = {
-                'id': row[0],
-                'first_name': row[1],
-                'last_name': row[2],
-                'position': row[3],
-                'contact': row[4],
-                'gender': row[5],
-                'birth_date': row[6],
-                'additional_info': row[8]
+        employee = cur.fetchone()
+        
+        if employee and str(employee[16]) == str(session.get('operator_id')):
+            # Convertir les dates en format ISO pour le frontend
+            birth_date = employee[3] if employee[3] else None
+            contract_start_date = employee[10] if employee[10] else None
+            
+            employee_data = {
+                'id': employee[0],
+                'first_name': employee[1],
+                'last_name': employee[2],
+                'birth_date': birth_date,
+                'gender': employee[4],
+                'contact': employee[5],
+                'region_id': employee[6],
+                'departement_id': employee[7],
+                'sous_prefecture_id': employee[8],
+                'poste_id': employee[9],
+                'contract_start_date': contract_start_date,
+                'contract_duration_months': employee[11],
+                'region_nom': employee[12],
+                'departement_nom': employee[13],
+                'sous_prefecture_nom': employee[14],
+                'poste_nom': employee[15]
             }
             
-            if row[9]:
-                employee['contract'] = {
-                    'id': row[9],
-                    'start_date': row[10],
-                    'end_date': row[11],
-                    'status': row[12],
-                    'type': row[13]
-                }
-            
-            return jsonify(employee)
+            return jsonify({
+                'success': True,
+                'employee': employee_data
+            })
         else:
-            return jsonify({'error': 'Employé non trouvé'}), 404
+            return jsonify({
+                'success': False,
+                'message': 'Employé non trouvé ou accès non autorisé'
+            }), 404
             
     except Exception as e:
-        print(f"Error getting employee: {str(e)}")
-        return jsonify({'error': 'Erreur lors de la récupération de l\'employé'}), 500
+        print(f"Erreur lors de la récupération de l'employé: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f"Erreur lors de la récupération de l'employé: {str(e)}"
+        }), 500
     finally:
-        if conn:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
             conn.close()
 
 @app.route('/api/employees/<employee_id>/contracts', methods=['GET'])
 @login_required
 def get_employee_contracts(employee_id):
-    """Récupère l'historique des contrats d'un employé"""
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cur = conn.cursor()
         
-        # Vérifier que l'employé existe et appartient à l'opérateur connecté
-        cursor.execute("""
-            SELECT id, first_name, last_name 
-            FROM employees 
-            WHERE id = ? AND operator_id = ?
-        """, (employee_id, session.get('operator_id')))
+        # Vérifier que l'employé appartient à l'opérateur connecté
+        cur.execute("""
+            SELECT operator_id
+            FROM employees
+            WHERE id = ? AND deleted_at IS NULL
+        """, (employee_id,))
+        employee = cur.fetchone()
         
-        employee = cursor.fetchone()
-        if not employee:
-            return jsonify({'error': 'Employé non trouvé'}), 404
+        if not employee or str(employee[0]) != str(session.get('operator_id')):
+            return jsonify({
+                'success': False,
+                'message': 'Employé non trouvé ou accès non autorisé'
+            }), 404
         
-        # Récupérer tous les contrats de l'employé
-        cursor.execute("""
+        # Récupérer l'historique des contrats
+        cur.execute("""
             SELECT 
-                c.id,
-                c.type,
                 c.start_date,
                 c.end_date,
-                c.status,
-                c.position,
-                c.additional_terms
+                CAST(ROUND((julianday(c.end_date) - julianday(c.start_date)) / 30.44) AS INTEGER) as duration_months,
+                COALESCE(p.titre, c.position) as position_name,
+                CASE 
+                    WHEN c.end_date < date('now') THEN 'Expiré'
+                    ELSE 'En cours'
+                END as status
             FROM contracts c
-            WHERE c.employee_id = ?
+            LEFT JOIN postes p ON c.position = p.id
+            WHERE c.employee_id = ? AND c.deleted_at IS NULL
             ORDER BY c.start_date DESC
         """, (employee_id,))
         
         contracts = []
-        for row in cursor.fetchall():
+        for row in cur.fetchall():
             contracts.append({
-                'id': row[0],
-                'type': row[1],
-                'start_date': row[2],
-                'end_date': row[3],
-                'status': row[4],
-                'position': row[5],
-                'additional_terms': row[6]
+                'start_date': row[0],
+                'end_date': row[1],
+                'duration_months': row[2],
+                'position': row[3],
+                'status': row[4]
             })
         
         return jsonify({
-            'employee': {
-                'id': employee[0],
-                'first_name': employee[1],
-                'last_name': employee[2]
-            },
+            'success': True,
             'contracts': contracts
         })
-        
+            
     except Exception as e:
         print(f"Erreur lors de la récupération des contrats: {str(e)}")
-        return jsonify({'error': 'Erreur lors de la récupération des contrats'}), 500
+        return jsonify({
+            'success': False,
+            'message': f"Erreur lors de la récupération des contrats: {str(e)}"
+        }), 500
     finally:
-        conn.close()
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
 
 @app.route('/api/employees/<employee_id>', methods=['PUT'])
 @login_required
@@ -361,20 +396,31 @@ def update_employee(employee_id):
             UPDATE employees 
             SET first_name = ?,
                 last_name = ?,
-                position = ?,
-                contact = ?,
+                poste_id = ?,
                 gender = ?,
                 birth_date = ?,
-                additional_info = ?
+                region_id = ?,
+                departement_id = ?,
+                sous_prefecture_id = ?,
+                additional_info = ?,
+                contract_duration = ?,
+                position = ?,
+                contact = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (
             data.get('first_name'),
             data.get('last_name'),
-            data.get('position'),
-            data.get('contact'),
+            data.get('poste_id'),
             data.get('gender'),
             data.get('birth_date'),
+            data.get('region_id'),
+            data.get('departement_id'),
+            data.get('sous_prefecture_id'),
             data.get('additional_info'),
+            data.get('contract_duration_months'),  # Le frontend envoie contract_duration_months
+            data.get('position'),
+            data.get('contact'),
             employee_id
         ))
         
@@ -424,41 +470,41 @@ def delete_employee(employee_id):
 @app.route('/api/employees', methods=['POST'])
 @login_required
 def add_employee():
-    """Ajoute un nouvel employé"""
     try:
         data = request.get_json()
-        if not data:
-            return jsonify({"success": False, "error": "Données invalides"}), 400
-
-        # Debug logs
-        print("Données reçues:", json.dumps(data, indent=2))
-
-        # Ajouter l'ID de l'opérateur aux données
-        data['operator_id'] = session['operator_id']
         
-        # Validation des données requises
-        required_fields = ['first_name', 'last_name', 'position', 'gender']
+        # Vérifier les champs requis
+        required_fields = ['first_name', 'last_name', 'gender']
         missing_fields = [field for field in required_fields if not data.get(field)]
         
         if missing_fields:
             return jsonify({
-                "success": False,
-                "error": f"Champs requis manquants: {', '.join(missing_fields)}"
+                'error': f"Champs requis manquants: {', '.join(missing_fields)}",
+                'success': False
             }), 400
-
-        # Ajout de l'employé
-        try:
-            if employee_service.add_employee(data):
-                return jsonify({"success": True, "message": "Employé ajouté avec succès"})
-            else:
-                return jsonify({"success": False, "error": "Erreur lors de l'ajout de l'employé"}), 500
-        except Exception as e:
-            print("Erreur dans employee_service.add_employee:", str(e))
-            return jsonify({"success": False, "error": str(e)}), 500
+        
+        # Ajouter l'operator_id depuis la session
+        data['operator_id'] = session.get('operator_id')
+        
+        print("Données avant création:", json.dumps(data, indent=2))  # Debug log
+        
+        # Créer l'employé
+        result = employee_service.create_employee(data)  # Changé de add_employee à create_employee
+        
+        if result and result.get('success'):
+            return jsonify(result), 201
+        else:
+            return jsonify({
+                'error': "Erreur lors de la création de l'employé",
+                'success': False
+            }), 400
             
     except Exception as e:
-        print(f"Erreur lors de l'ajout d'un employé: {str(e)}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"Erreur dans add_employee: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 400
 
 @app.route('/api/employees/delete-multiple', methods=['POST'])
 @login_required
@@ -1075,6 +1121,8 @@ def get_regions():
 
 @app.route('/api/postes')
 def get_postes():
+    """Récupère la liste des postes actifs"""
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -1085,11 +1133,13 @@ def get_postes():
             ORDER BY titre
         """)
         postes = [{"id": row[0], "titre": row[1]} for row in cursor.fetchall()]
-        conn.close()
-        return jsonify(postes)
+        return jsonify({"success": True, "data": postes})
     except Exception as e:
         print(f"Erreur lors de la récupération des postes: {str(e)}")
         return jsonify({"success": False, "error": str(e)})
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/diplomes')
 def get_diplomes():
@@ -1135,6 +1185,122 @@ def get_categories():
         return jsonify({"success": True, "data": categories})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/employees/operator')
+@login_required
+def get_operator_employees():
+    """Récupère les employés de l'opérateur connecté"""
+    try:
+        operator_id = session.get('operator_id')
+        if not operator_id:
+            return jsonify({
+                'error': 'Opérateur non connecté',
+                'success': False
+            }), 401
+
+        print(f"Récupération des employés pour l'opérateur: {operator_id}")  # Debug log
+        
+        employees = employee_service.get_employees_by_operator(operator_id)
+        print(f"Nombre d'employés trouvés: {len(employees)}")  # Debug log
+        
+        return jsonify(employees)
+        
+    except Exception as e:
+        print(f"Erreur dans get_operator_employees: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 500
+
+@app.route('/api/current-operator', methods=['GET'])
+@login_required
+def get_current_operator():
+    try:
+        # Récupérer l'ID de l'opérateur depuis la session
+        operator_id = session.get('operator_id')
+        if not operator_id:
+            return jsonify({'success': False, 'message': 'Non authentifié'}), 401
+            
+        # Connexion à la base de données
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Récupérer les informations de l'opérateur
+        cur.execute('SELECT id, name FROM operators WHERE id = ?', (operator_id,))
+        operator = cur.fetchone()
+
+        # Fermer la connexion
+        cur.close()
+        conn.close()
+
+        if operator:
+            return jsonify({
+                'success': True,
+                'operator': {
+                    'id': operator[0],
+                    'name': operator[1]
+                }
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Opérateur non trouvé'}), 404
+
+    except Exception as e:
+        print('Erreur lors de la récupération de l\'opérateur:', str(e))
+        return jsonify({'success': False, 'message': 'Erreur serveur'}), 500
+
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    try:
+        data = request.get_json()
+        email = data.get('email')  # Changé de contact à email
+        password = data.get('password')
+        
+        if not all([email, password]):
+            return jsonify({
+                'success': False,
+                'error': 'Tous les champs sont requis'
+            }), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Vérifier les identifiants de l'administrateur
+        cursor.execute("""
+            SELECT phone, name, email
+            FROM administrators
+            WHERE email = ? AND password = ?
+        """, (email, password))
+        
+        admin = cursor.fetchone()
+        
+        if not admin:
+            return jsonify({
+                'success': False,
+                'error': 'Identifiants incorrects'
+            }), 401
+        
+        # Stocker les informations dans la session
+        session['admin_id'] = admin[0]  # phone comme ID
+        session['admin_name'] = admin[1]
+        session['admin_email'] = admin[2]
+        session['is_admin'] = True
+        
+        return jsonify({
+            'success': True,
+            'redirect': '/admin/dashboard'
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors du login admin: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -760,6 +760,7 @@
                 </div>
 
                 <div class="dropdown me-3">
+                    <span id="operatorName">-</span>
                     <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="fas fa-user me-2"></i>{{ operator_name }}
                     </button>
@@ -897,7 +898,7 @@
                         <!-- Container pour les alertes -->
                         <div id="alertContainer"></div>
 
-                        <table id="employeesTable" class="table table-striped table-bordered">
+                        <table id="employeesTable" class="table table-striped table-bordered" data-operator-id="{{ operator_id }}">
                             <thead>
                                 <tr>
                                     <th>Region</th>
@@ -975,42 +976,117 @@
 </div>
 
     <!-- Modal de reconduction de contrat -->
-    <div class="modal fade" id="renewContractModal" tabindex="-1">
-        <div class="modal-dialog">
+    <div class="modal fade" id="renewContractModal" tabindex="-1" aria-labelledby="renewContractModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-sync-alt me-2"></i>Reconduire les contrats
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title" id="renewContractModalLabel">Reconduction de contrat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form id="renewContractForm">
-                        <div class="mb-3">
-                            <label for="renewPoste" class="form-label">Poste</label>
-                            <input type="text" class="form-control" id="renewPoste" required>
+                        <input type="hidden" id="renewEmployeeId" name="employeeId">
+                        
+                        <!-- Nom et Prénom -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="renewFirstName" class="form-label">Prénom</label>
+                                <input type="text" class="form-control" id="renewFirstName" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="renewLastName" class="form-label">Nom</label>
+                                <input type="text" class="form-control" id="renewLastName" readonly>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="renewSituation" class="form-label">Situation Géographique</label>
-                            <select class="form-select" id="renewSituation" required>
-                                <option value="">Sélectionner...</option>
-                                <option value="Au siège">Au siège</option>
-                                <option value="À l'intérieur">À l'intérieur</option>
-                            </select>
+
+                        <!-- Situation géographique -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <label class="form-label">Situation géographique</label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="renewLocation" id="renewAuSiege" value="siege">
+                                        <label class="form-check-label" for="renewAuSiege">Au siège</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="renewLocation" id="renewALInterieur" value="interieur">
+                                        <label class="form-check-label" for="renewALInterieur">À l'intérieur</label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="renewDuration" class="form-label">Durée du contrat (mois)</label>
-                            <input type="number" class="form-control" id="renewDuration" min="1" value="3" required>
+
+                        <!-- Localisation -->
+                        <div class="row mb-3" id="renewLocationFields">
+                            <div class="col-md-4">
+                                <select class="form-select" id="renewRegion" name="region">
+                                    <option value="">Sélectionner une région</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="renewDepartement" name="departement">
+                                    <option value="">Sélectionner un département</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="renewSousprefecture" name="sousprefecture">
+                                    <option value="">Sélectionner une sous-préfecture</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="startDate" class="form-label">Date de début</label>
-                            <input type="date" class="form-control" id="startDate" required>
+
+                        <!-- Dates et durée -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="renewStartDate" class="form-label">Date de début <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="renewStartDate" name="startDate" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="renewDuration" class="form-label">Durée (en mois) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="renewDuration" name="duration" required min="1">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="renewEndDate" class="form-label">Date de fin</label>
+                                <input type="date" class="form-control" id="renewEndDate" name="endDate" readonly>
+                            </div>
+                        </div>
+
+                        <!-- Poste et Catégorie -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="renewPosition" class="form-label">Poste <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewPosition" name="position" required>
+                                    <option value="">Sélectionner un poste</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="renewCategorie" class="form-label">Catégorie <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewCategorie" name="categorie" required>
+                                    <option value="">Sélectionner une catégorie</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Diplôme et École -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="renewDiplome" class="form-label">Diplôme <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewDiplome" name="diplome" required>
+                                    <option value="">Sélectionner un diplôme</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="renewEcole" class="form-label">École <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewEcole" name="ecole" required>
+                                    <option value="">Sélectionner une école</option>
+                                </select>
+                            </div>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="button" class="btn btn-primary" id="confirmRenewBtn">Confirmer</button>
+                    <button type="button" class="btn btn-primary" id="submitRenewContract">Renouveler le contrat</button>
                 </div>
             </div>
         </div>
@@ -1028,6 +1104,7 @@
             </div>
             <div class="modal-body">
                 <form id="addEmployeeForm" class="needs-validation" novalidate>
+                    
                     <!-- Situation géographique -->
                     <div class="row mb-3">
                         <div class="col-12">
@@ -1425,26 +1502,36 @@
         }
 
         function fillSelect(id, data) {
-            console.log('Remplissage du select', id, 'avec', data); // Debug
             const select = document.getElementById(id);
-            if (!select) {
-                console.error('Select non trouvé:', id);
-                return;
-            }
-
+            if (!select) return;
+            
             // Garder l'option par défaut
-            const defaultOption = select.querySelector('option[value=""]');
-            select.innerHTML = '';
-            if (defaultOption) {
-                select.appendChild(defaultOption);
+            let options = `<option value="">Sélectionner...</option>`;
+            
+            // Ajouter les options en fonction du type de select
+            if (id === 'poste') {
+                data.forEach(item => {
+                    options += `<option value="${item.id}">${item.titre}</option>`;
+                });
+                // Ajouter l'option "Autre" pour poste
+                options += `<option value="autre">Autre</option>`;
+            } else {
+                // Pour les autres selects, garder le comportement existant
+                data.forEach(item => {
+                    options += `<option value="${item.id}">${item.name}</option>`;  
+                });
+                // Ajouter l'option "Autre" pour les autres selects si nécessaire
+                if (['categorie', 'diplome', 'ecole'].includes(id)) {
+                    options += `<option value="autre">Autre</option>`;
+                }
             }
             
-            // Ajouter les nouvelles options
-            data.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = item.name;
-                select.appendChild(option);
+            select.innerHTML = options;
+            
+            // Debug
+            console.log(`Remplissage de ${id}:`, {
+                données_reçues: data,
+                options_générées: options
             });
         }
 
@@ -1495,18 +1582,17 @@
     </script>
 
 <!-- Ajout des scripts nécessaires pour l'export -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdn.datatables.net/select/1.3.3/js/dataTables.select.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    
+<!-- Script personnalisé -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     <script>
         // Script de débogage
         $(document).ready(function() {

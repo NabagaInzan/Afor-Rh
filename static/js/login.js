@@ -5,20 +5,29 @@ document.addEventListener('DOMContentLoaded', function() {
     const passwordInput = document.getElementById('password');
     const adminSwitch = document.getElementById('adminSwitch');
     const passwordToggle = document.querySelector('.password-toggle');
+    const projectSelect = document.getElementById('project');
+    const actorTypeSelect = document.getElementById('actorType');
 
-    // Charger la liste des acteurs
-    fetch('/get_operators')
-        .then(response => response.json())
-        .then(operators => {
-            operators.forEach(operator => {
-                const option = document.createElement('option');
-                option.value = operator.id;
-                option.textContent = operator.name;
-                option.dataset.contact = operator.contact1;
-                usernameSelect.appendChild(option);
-            });
-        })
-        .catch(error => console.error('Erreur lors du chargement des acteurs:', error));
+    // Charger la liste des acteurs seulement si on n'est pas en mode admin
+    function loadOperators() {
+        if (!adminSwitch.checked) {
+            fetch('/api/operators')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.operators) {
+                        usernameSelect.innerHTML = '<option value="">Sélectionnez un acteur</option>';
+                        data.operators.forEach(operator => {
+                            const option = document.createElement('option');
+                            option.value = operator.id;
+                            option.textContent = operator.name;
+                            option.dataset.contact = operator.phone;
+                            usernameSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => console.error('Erreur lors du chargement des acteurs:', error));
+        }
+    }
 
     // Gérer le changement d'acteur
     usernameSelect.addEventListener('change', function() {
@@ -30,13 +39,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Gérer le switch admin
     adminSwitch.addEventListener('change', function() {
-        contactInput.readOnly = !this.checked;
-        if (!this.checked) {
-            const selectedOption = usernameSelect.options[usernameSelect.selectedIndex];
-            contactInput.value = selectedOption.dataset.contact || '';
-        } else {
+        const isAdmin = this.checked;
+        
+        // Mettre à jour l'interface selon le mode
+        usernameSelect.disabled = isAdmin;
+        contactInput.readOnly = !isAdmin;
+        projectSelect.disabled = isAdmin;
+        actorTypeSelect.disabled = isAdmin;
+        
+        // Réinitialiser les champs
+        if (isAdmin) {
+            usernameSelect.value = '';
             contactInput.value = '';
+            projectSelect.value = '';
+            actorTypeSelect.value = '';
+            contactInput.type = 'email';
+            contactInput.placeholder = "Email administrateur";
             contactInput.focus();
+        } else {
+            loadOperators();
+            contactInput.type = 'text';
+            contactInput.placeholder = "Contact";
+            const selectedOption = usernameSelect.options[usernameSelect.selectedIndex];
+            if (selectedOption) {
+                contactInput.value = selectedOption.dataset.contact || '';
+            }
         }
     });
 
@@ -52,14 +79,20 @@ document.addEventListener('DOMContentLoaded', function() {
     loginForm.addEventListener('submit', function(e) {
         e.preventDefault();
         
-        const formData = {
+        const isAdmin = adminSwitch.checked;
+        const formData = isAdmin ? {
+            email: contactInput.value,
+            password: passwordInput.value
+        } : {
             operator_id: usernameSelect.value,
             contact: contactInput.value,
             password: passwordInput.value,
-            is_admin: adminSwitch.checked
+            project: projectSelect.value
         };
 
-        fetch('/login', {
+        const url = isAdmin ? '/api/admin/login' : '/api/login';
+
+        fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -71,23 +104,30 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 window.location.href = data.redirect;
             } else {
-                // Afficher l'erreur
-                const alert = document.createElement('div');
-                alert.className = 'alert alert-danger';
-                alert.textContent = data.error;
-                loginForm.insertBefore(alert, loginForm.firstChild);
-                
-                // Supprimer l'alerte après 3 secondes
-                setTimeout(() => alert.remove(), 3000);
+                showError(data.error);
             }
         })
         .catch(error => {
             console.error('Erreur:', error);
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-danger';
-            alert.textContent = 'Une erreur est survenue. Veuillez réessayer.';
-            loginForm.insertBefore(alert, loginForm.firstChild);
-            setTimeout(() => alert.remove(), 3000);
+            showError('Une erreur est survenue. Veuillez réessayer.');
         });
     });
+
+    // Fonction pour afficher les erreurs
+    function showError(message) {
+        const existingAlert = loginForm.querySelector('.alert');
+        if (existingAlert) {
+            existingAlert.remove();
+        }
+
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger';
+        alert.textContent = message;
+        loginForm.insertBefore(alert, loginForm.firstChild);
+        
+        setTimeout(() => alert.remove(), 3000);
+    }
+
+    // Charger les données initiales
+    loadOperators();
 });

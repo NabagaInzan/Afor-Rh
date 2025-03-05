@@ -11,6 +11,7 @@ let selectedEmployees = new Set();
 let selectedExpiredEmployees = [];
 let currentEmployeeId = null;
 let postes = [];
+let currentOperatorId;
 
 // Fonction pour formater le nom
 function formatName(name) {
@@ -76,6 +77,7 @@ function loadEmployees() {
     $.get('/api/employees', function(response) {
         if (!response.success || !response.employees) {
             console.error("Réponse invalide:", response);
+            showAlert("Erreur lors du chargement des employés", "danger");
             return;
         }
 
@@ -87,22 +89,7 @@ function loadEmployees() {
 
         table = $('#employeesTable').DataTable({
             language: {
-                url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/fr-FR.json',
-                emptyTable: "Aucune donnée disponible",
-                info: "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
-                infoEmpty: "Affichage de 0 à 0 sur 0 entrées",
-                infoFiltered: "(filtré de _MAX_ entrées au total)",
-                lengthMenu: "Afficher _MENU_ entrées",
-                loadingRecords: "Chargement...",
-                processing: "Traitement...",
-                search: "Rechercher:",
-                zeroRecords: "Aucun résultat trouvé",
-                paginate: {
-                    first: "Premier",
-                    last: "Dernier",
-                    next: "Suivant",
-                    previous: "Précédent"
-                }
+                url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/fr-FR.json'
             },
             responsive: true,
             data: response.employees,
@@ -155,13 +142,14 @@ function loadEmployees() {
                 { 
                     data: null,
                     render: function(data) {
-                        return getPosteNom(data.position || data.poste_id) || '-';
+                        return data.poste || '-';
                     }
                 },
                 { 
                     data: null,
                     render: function(data) {
-                        const status = data.contract_state || '-';
+                        if (!data.contract || !data.contract.status) return '-';
+                        const status = data.contract.status;
                         const statusClass = status === 'Expiré' ? 'text-danger' : 'text-success';
                         return `<span class="${statusClass}">${status}</span>`;
                     }
@@ -169,29 +157,49 @@ function loadEmployees() {
                 { 
                     data: null,
                     render: function(data) {
-                        return data.contract_duration_months ? data.contract_duration_months + ' mois' : '-';
+                        if (!data.contract || !data.contract.start_date || !data.contract.end_date) {
+                            return data.contract_duration_months ? data.contract_duration_months + ' mois' : '-';
+                        }
+                        const startDate = new Date(data.contract.start_date);
+                        const endDate = new Date(data.contract.end_date);
+                        const diffTime = Math.abs(endDate - startDate);
+                        const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30.44));
+                        return diffMonths + ' mois';
                     }
                 },
                 {
                     data: null,
                     render: function(data) {
-                        return `
+                        let buttons = `
                             <div class="btn-group">
-                                <button class="btn btn-sm btn-primary edit-employee" data-id="${data.id}">
+                                <button class="btn btn-sm btn-primary edit-employee" data-id="${data.id}" title="Modifier">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn btn-sm btn-danger delete-employee" data-id="${data.id}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        `;
-                    },
-                    orderable: false
+                                <button class="btn btn-sm btn-info view-contracts" data-id="${data.id}" data-first-name="${data.first_name}" data-last-name="${data.last_name}" title="Voir les détails">
+                                    <i class="fas fa-eye"></i>
+                                </button>`;
+                        
+                        // Ajouter le bouton de reconduction uniquement si le contrat est expiré
+                        if (data.contract && data.contract.status === 'Expiré') {
+                            buttons += `
+                                <button class="btn btn-sm btn-warning btn-renew" data-id="${data.id}" data-first-name="${data.first_name}" data-last-name="${data.last_name}" title="Reconduire le contrat">
+                                    <i class="fas fa-sync-alt"></i>
+                                </button>`;
+                        }
+                        
+                        buttons += `</div>`;
+                        return buttons;
+                    }
                 }
-            ]
+            ],
+            order: [[3, 'asc']]  // Tri par nom de famille
         });
-    }).fail(function(error) {
-        console.error("Erreur lors du chargement des employés:", error);
+
+        // Mettre à jour les statistiques après le chargement
+        loadStats();
+    })
+    .fail(function(xhr) {
+        console.error("Erreur lors du chargement des employés:", xhr.responseText);
         showAlert("Erreur lors du chargement des employés", "danger");
     });
 }
@@ -237,6 +245,33 @@ function calculateAge(birthDate) {
 
 // Initialisation au chargement de la page
 $(document).ready(function() {
+    // Log pour vérifier que le code s'exécute
+    console.log('Script chargé et prêt');
+    
+    $(document).on('click', '.renew-contract', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Bouton de reconduction cliqué');
+        
+        const employeeId = $(this).data('id');
+        console.log('ID employé:', employeeId);
+        
+        // Vérifier si le modal existe
+        const modalElement = document.getElementById('renewContractModal');
+        console.log('Modal element:', modalElement);
+        
+        try {
+            const bsModal = new bootstrap.Modal(modalElement);
+            bsModal.show();
+        } catch (error) {
+            console.error('Erreur lors de l\'ouverture du modal:', error);
+        }
+    });
+    
+    // Récupérer l'ID de l'opérateur depuis le data attribute
+    currentOperatorId = $('#employeesTable').data('operator-id');
+    console.log('ID de l\'opérateur:', currentOperatorId);
+
     // Charger les données nécessaires
     loadPostes().then(function() {
         // Une fois les postes chargés, charger les employés
@@ -250,891 +285,327 @@ $(document).ready(function() {
 });
 
 // Fonction pour exporter les données vers Excel
-function exportToExcel(data) {
-    const worksheet = XLSX.utils.json_to_sheet(data.map(row => ({
-        'Nom': row.last_name,
-        'Prénom': row.first_name,
-        'Âge': row.age,
-        'Poste': row.position,
-        'Statut Contrat': row.contract.status,
-        'Durée Contrat': row.contract.duration + ' mois',
-        'Situation Géographique': row.availability
-    })));
+function exportToExcel() {
+    const table = $('#employeesTable').DataTable();
+    const data = table.rows().data().toArray();
+    
+    if (!data || data.length === 0) {
+        showAlert('Aucune donnée à exporter', 'warning');
+        return;
+    }
 
+    const exportData = data.map(row => ({
+        'Région': row.region_nom || '-',
+        'Département': row.departement_nom || '-',
+        'Sous-préfecture': row.sous_prefecture_nom || '-',
+        'Nom': row.last_name || '-',
+        'Prénom': row.first_name || '-',
+        'Genre': row.gender || '-',
+        'Âge': row.birth_date ? calculateAge(new Date(row.birth_date)) + ' ans' : '-',
+        'Poste': row.poste || '-',
+        'Statut Contrat': row.contract ? row.contract.status : '-',
+        'Durée Contrat': row.contract_duration_months ? row.contract_duration_months + ' mois' : '-'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Employés");
-    
+
     // Ajuster la largeur des colonnes
     const wscols = [
+        {wch: 20}, // Région
+        {wch: 20}, // Département
+        {wch: 20}, // Sous-préfecture
         {wch: 20}, // Nom
         {wch: 20}, // Prénom
+        {wch: 10}, // Genre
         {wch: 10}, // Âge
         {wch: 25}, // Poste
         {wch: 15}, // Statut Contrat
-        {wch: 15}, // Durée Contrat
-        {wch: 20}  // Situation Géographique
+        {wch: 15}  // Durée Contrat
     ];
     worksheet['!cols'] = wscols;
 
-    XLSX.writeFile(workbook, "Liste_Employés_PRESFOR.xlsx");
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fr-FR').replace(/\//g, '-');
+    const timeStr = now.toLocaleTimeString('fr-FR').replace(/:/g, '-');
+    const fileName = `Liste_Employés_${dateStr}_${timeStr}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
 }
 
 // Fonction pour exporter les données vers PDF
-function exportToPDF(data) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    
-    // Ajouter un arrière-plan stylisé
-    doc.setFillColor(240, 240, 240);
-    doc.rect(0, 0, doc.internal.pageSize.width, doc.internal.pageSize.height, 'F');
-    
-    // Ajouter le logo et le titre
-    doc.setFontSize(22);
-    doc.setTextColor(5, 150, 105); // Couleur verte PRESFOR
-    doc.text("PRESFOR - Liste des Employés", 105, 20, { align: 'center' });
-    
-    // Ajouter la date
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text("Date d'export: " + new Date().toLocaleDateString(), 105, 30, { align: 'center' });
-    
-    // Configuration de la table
-    const columns = [
-        {header: 'Nom', dataKey: 'nom'},
-        {header: 'Prénom', dataKey: 'prenom'},
-        {header: 'Âge', dataKey: 'age'},
-        {header: 'Poste', dataKey: 'poste'},
-        {header: 'Statut Contrat', dataKey: 'statut'},
-        {header: 'Durée Contrat', dataKey: 'duree'},
-        {header: 'Situation Géo.', dataKey: 'situation'}
-    ];
-    
-    const rows = data.map(row => ({
-        nom: row.last_name,
-        prenom: row.first_name,
-        age: row.age,
-        poste: row.position,
-        statut: row.contract.status,
-        duree: row.contract.duration + ' mois',
-        situation: row.availability
-    }));
+function exportToPDF() {
+    try {
+        // Récupérer les données de la table
+        const table = $('#employeesTable').DataTable();
+        const data = table.rows().data().toArray();
 
-    // Style de la table
-    doc.autoTable({
-        startY: 40,
-        head: [['Date de début', 'Date de fin', 'Durée', 'Poste', 'Statut']],
-        body: rows,
-        theme: 'striped',
-        headStyles: {
-            fillColor: [5, 150, 105],
-            textColor: [255, 255, 255],
-            fontSize: 10,
-            fontStyle: 'bold',
-            halign: 'center'
-        },
-        alternateRowStyles: {
-            fillColor: [245, 245, 245]
-        },
-        columnStyles: {
-            0: {fontStyle: 'bold'}, // Nom en gras
-            1: {fontStyle: 'bold'}, // Prénom en gras
-        },
-        margin: {top: 40},
-        didDrawPage: function(data) {
-            // Ajouter un pied de page
-            doc.setFontSize(8);
-            doc.setTextColor(100, 100, 100);
-            doc.text('Page ' + doc.internal.getCurrentPageInfo().pageNumber, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, {
-                align: 'center'
-            });
-        }
-    });
-    
-    // Sauvegarder le PDF
-    doc.save("Liste_Employés_PRESFOR.pdf");
-}
-
-$('#exportExcel').click(function() {
-    const data = employeesTable.rows().data().toArray();
-    exportToExcel(data);
-});
-
-$('#exportPDF').click(function() {
-    const data = employeesTable.rows().data().toArray();
-    exportToPDF(data);
-});
-
-// Export de l'historique des contrats
-let currentContractsData = null;
-
-function updateCurrentContractsData(data) {
-    currentContractsData = data;
-}
-
-// Fonction pour exporter l'historique des contrats vers Excel
-function exportContractsToExcel(data) {
-    const contractsData = data.contracts.map(contract => {
-        const duration = calculateContractDuration(contract.start_date, contract.end_date);
-        return {
-            'Date de début': formatDate(contract.start_date),
-            'Date de fin': formatDate(contract.end_date),
-            'Durée': formatDuration(duration),
-            'Poste': contract.position || 'Non spécifié',
-            'Statut': contract.status
-        };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(contractsData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Historique Contrats");
-    
-    // Sauvegarder le fichier
-    XLSX.writeFile(wb, `Historique_Contrats_${data.employee.last_name}_${data.employee.first_name}.xlsx`);
-}
-
-// Fonction pour exporter l'historique des contrats vers PDF
-function exportContractsToPDF(data) {
-    const doc = new jspdf.jsPDF();
-    
-    // En-tête
-    doc.setFontSize(16);
-    doc.text(`Historique des contrats - ${data.employee.last_name} ${data.employee.first_name}`, 14, 20);
-    
-    // Tableau des contrats
-    const contractsData = data.contracts.map(contract => {
-        const duration = calculateContractDuration(contract.start_date, contract.end_date);
-        return [
-            formatDate(contract.start_date),
-            formatDate(contract.end_date),
-            formatDuration(duration),
-            contract.position || 'Non spécifié',
-            contract.status
-        ];
-    });
-
-    doc.autoTable({
-        startY: 30,
-        head: [['Date de début', 'Date de fin', 'Durée', 'Poste', 'Statut']],
-        body: contractsData,
-        theme: 'striped',
-        headStyles: {
-            fillColor: [5, 150, 105],
-            textColor: [255, 255, 255],
-            fontSize: 10,
-            fontStyle: 'bold',
-            halign: 'center'
-        },
-        alternateRowStyles: {
-            fillColor: [245, 245, 245]
-        },
-        columnStyles: {
-            0: {fontStyle: 'bold'}, // Nom en gras
-            1: {fontStyle: 'bold'}, // Prénom en gras
-        },
-        margin: {top: 40},
-        didDrawPage: function(data) {
-            // Ajouter un pied de page
-            doc.setFontSize(8);
-            doc.setTextColor(100, 100, 100);
-            doc.text('Page ' + doc.internal.getCurrentPageInfo().pageNumber, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, {
-                align: 'center'
-            });
-        }
-    });
-    
-    // Sauvegarder le PDF
-    doc.save(`Historique_Contrats_${data.employee.last_name}_${data.employee.first_name}.pdf`);
-}
-
-$('#exportContractsExcel').click(function() {
-    if (!currentContractsData) return;
-    
-    exportContractsToExcel(currentContractsData);
-});
-
-$('#exportContractsPDF').click(function() {
-    if (!currentContractsData) return;
-    
-    exportContractsToPDF(currentContractsData);
-});
-
-$('#printContracts').click(function() {
-    if (!currentContractsData) return;
-    
-    const printWindow = window.open('', '_blank');
-    const contractsTable = $('#viewContractsModal .table').clone();
-    
-    printWindow.document.write(`
-        <html>
-            <head>
-                <title>Historique des Contrats</title>
-                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-                <style>
-                    @media print {
-                        .table { width: 100%; }
-                        th { background-color: #f8f9fa !important; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container mt-4">
-                    <h2>Historique des Contrats</h2>
-                    <h4>${currentContractsData.employee.first_name} ${currentContractsData.employee.last_name}</h4>
-                    <p>Date: ${new Date().toLocaleDateString()}</p>
-                    ${contractsTable.prop('outerHTML')}
-                </div>
-            </body>
-        </html>
-    `);
-    
-    printWindow.document.close();
-    printWindow.print();
-});
-
-// Mise à jour du gestionnaire de visualisation des contrats
-$('#employeesTable').on('click', '.view-btn', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const employeeId = $(this).data('id');
-    
-    $.ajax({
-        url: `/api/employees/${employeeId}/contracts`,
-        method: 'GET',
-        success: function(response) {
-            // Stocker les données pour l'export
-            updateCurrentContractsData(response);
-            
-            // Construire le contenu du modal
-            let modalContent = `
-                <h5>Historique des contrats de ${response.employee.first_name} ${response.employee.last_name}</h5>
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Début</th>
-                                <th>Fin</th>
-                                <th>Statut</th>
-                                <th>Poste</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            
-            response.contracts.forEach(contract => {
-                const statusClass = contract.status === 'En cours' ? 'text-success' : 'text-danger';
-                                  
-                modalContent += `
-                    <tr>
-                        <td>${contract.type || ''}</td>
-                        <td>${contract.start_date || ''}</td>
-                        <td>${contract.end_date || ''}</td>
-                        <td><span class="${statusClass}">${contract.status || ''}</span></td>
-                        <td>${contract.position || ''}</td>
-                    </tr>
-                `;
-            });
-            
-            modalContent += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            
-            // Mettre à jour et afficher le modal
-            $('#viewContractsModal .modal-body').html(modalContent);
-            $('#viewContractsModal').modal('show');
-        },
-        error: function(xhr) {
-            console.error('Erreur lors du chargement des contrats:', xhr.responseJSON);
-            showAlert('Erreur lors du chargement de l\'historique des contrats', 'danger');
-        }
-    });
-});
-
-// Fonction pour ouvrir le modal de reconduction de contrat
-function renewContract(employeeId) {
-    // Récupérer les données de l'employé
-    const employee = employeesTable.data().toArray().find(emp => emp.id === employeeId);
-    if (!employee) return;
-
-    // Remplir le formulaire avec les données de l'employé
-    $('#renewEmployeeId').val(employee.id);
-    $('#renewFirstName').val(employee.first_name);
-    $('#renewLastName').val(employee.last_name);
-    $('#renewContact').val(employee.contact);
-    $('#renewGender').val(employee.gender);
-    $('#renewPosition').val(employee.position);
-    $('#renewAddress').val(employee.address);
-    $('#renewBirthDate').val(employee.birth_date);
-    $('#renewAvailability').val(employee.availability);
-    $('#renewAdditionalInfo').val(employee.additional_info);
-
-    // Réinitialiser la durée
-    $('#renewDuration').val('').trigger('input');
-
-    // Ouvrir le modal
-    $('#renewContractModal').modal('show');
-}
-
-// Fonction pour calculer la durée entre deux dates en mois
-function calculateContractDuration(startDate, endDate) {
-    if (!startDate || !endDate) return 'Non spécifié';
-    
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const yearsDiff = end.getFullYear() - start.getFullYear();
-    const monthsDiff = end.getMonth() - start.getMonth();
-    
-    const totalMonths = (yearsDiff * 12) + monthsDiff;
-    
-    if (totalMonths < 0) return 'Non spécifié';
-    return totalMonths;
-}
-
-// Fonction pour formater la durée en texte
-function formatDuration(months) {
-    if (!months || months === 'Non spécifié') return 'Non spécifié';
-    
-    const years = Math.floor(months / 12);
-    const remainingMonths = months % 12;
-    
-    if (years > 0) {
-        if (remainingMonths > 0) {
-            return `${years} an${years > 1 ? 's' : ''} et ${remainingMonths} mois`;
-        }
-        return `${years} an${years > 1 ? 's' : ''}`;
-    }
-    return `${months} mois`;
-}
-
-// Fonction pour convertir les mois en années et mois
-function convertMonthsToYearsAndMonths(totalMonths) {
-    const years = Math.floor(totalMonths / 12);
-    const months = totalMonths % 12;
-    let durationText = '';
-    
-    if (years > 0) {
-        durationText += `${years} an${years > 1 ? 's' : ''}`;
-    }
-    if (months > 0) {
-        if (durationText) durationText += ' et ';
-        durationText += `${months} mois`;
-    }
-    if (!durationText) {
-        durationText = `${totalMonths} mois`;
-    }
-    return durationText;
-}
-
-function calculateContractEndDate(startDate, duration) {
-    if (!startDate || !duration) return '-';
-    
-    // Convertir la durée en nombre de mois
-    let months = 0;
-    if (typeof duration === 'string') {
-        // Si la durée est "6 mois", "1 an", "18 mois", etc.
-        const match = duration.match(/(\d+)\s*(mois|an|ans)/i);
-        if (match) {
-            const number = parseInt(match[1]);
-            const unit = match[2].toLowerCase();
-            months = unit.startsWith('an') ? number * 12 : number;
-        } else {
-            // Si c'est juste un nombre, on considère que ce sont des mois
-            months = parseInt(duration) || 12; // Par défaut 12 mois si non valide
-        }
-    } else {
-        months = parseInt(duration) || 12;
-    }
-
-    // Calculer la date de fin
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + months);
-    
-    // Formater la date en YYYY-MM-DD pour l'input date
-    const endDateStr = endDate.toISOString().split('T')[0];
-    return endDateStr;
-}
-
-function formatDate(dateString) {
-    if (!dateString) return '-';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('fr-FR', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    });
-}
-
-// Fonction pour supprimer un employé individuel
-function deleteEmployee(employeeId) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cet employé ?')) {
-        $.ajax({
-            url: `/api/employees/${employeeId}`,
-            method: 'DELETE',
-            success: function(response) {
-                if (response.success) {
-                    showToast('Employé supprimé avec succès', 'success');
-                    employeesTable.ajax.reload();
-                } else {
-                    showToast(response.error || 'Erreur lors de la suppression', 'error');
-                }
-            },
-            error: function(xhr) {
-                showToast('Erreur lors de la suppression de l\'employé', 'error');
-            }
-        });
-    }
-}
-
-// Fonction pour vérifier l'expiration du contrat
-function checkContractExpiration() {
-    const startDateInput = $('#contractStartDate');
-    const durationInput = $('#contractDuration');
-    const expirationSection = $('.contract-expiration-section');
-    const contractExpiredCheckbox = $('#contractExpired');
-    
-    const startDate = startDateInput.val() ? new Date(startDateInput.val()) : new Date();
-    const durationMonths = parseInt(durationInput.val()) || 0;
-    
-    // Calculer la date de fin
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + durationMonths);
-    
-    // Vérifier si le contrat est expiré
-    const now = new Date();
-    if (endDate < now) {
-        expirationSection.slideDown();
-    } else {
-        expirationSection.slideUp();
-        // Réinitialiser la case à cocher si le contrat n'est pas expiré
-        contractExpiredCheckbox.prop('checked', false);
-    }
-}
-
-// Fonction pour calculer la date de fin du contrat
-function calculateContractEndDate() {
-    const startDateInput = $('#contractStartDate');
-    const durationInput = $('#contractDuration');
-    const endDateInput = $('#contractEndDate');
-    
-    const startDate = startDateInput.val() ? new Date(startDateInput.val()) : new Date();
-    const durationMonths = parseInt(durationInput.val()) || 0;
-    
-    if (durationMonths > 0) {
-        // Calculer la date de fin
-        const endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + durationMonths);
-        
-        // Formater la date en YYYY-MM-DD pour l'input date
-        const endDateStr = endDate.toISOString().split('T')[0];
-        endDateInput.val(endDateStr);
-        
-        // Vérifier si le contrat est expiré
-        checkContractExpiration();
-    }
-}
-
-// Écouteurs d'événements pour le calcul automatique
-$('#contractStartDate, #contractDuration').on('change', calculateContractEndDate);
-
-// Calculer la date de fin initiale au chargement du modal
-$('#addEmployeeModal').on('shown.bs.modal', function() {
-    // Si la date de début n'est pas définie, utiliser la date actuelle
-    if (!$('#contractStartDate').val()) {
-        const today = new Date().toISOString().split('T')[0];
-        $('#contractStartDate').val(today);
-    }
-    calculateContractEndDate();
-});
-
-$(document).ready(function() {
-    // Initialisation de DataTable
-    $('#employeesTable').DataTable({
-        language: {
-            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/fr-FR.json'
-        }
-    });
-
-    // Chargement initial des employés
-    loadEmployees();
-
-    // Rafraîchissement automatique toutes les 30 secondes
-    setInterval(loadEmployees, 30000);
-
-    // Fonction pour charger les employés
-    function loadEmployees() {
-        $.ajax({
-            url: '/api/employees',
-            method: 'GET',
-            success: function(response) {
-                console.log("Données reçues:", response);
-                if (response.success && response.employees) {
-                    const table = $('#employeesTable').DataTable();
-                    table.clear();
-                    
-                    response.employees.forEach(employee => {
-                        const birthDate = new Date(employee.birth_date);
-                        const age = calculateAge(birthDate);
-                        
-                        table.row.add([
-                            employee.region_nom || '-',
-                            employee.departement_nom || '-',
-                            employee.sous_prefecture_nom || '-',
-                            employee.last_name || '-',
-                            employee.first_name || '-',
-                            employee.gender || '-',
-                            age || '-',
-                            getPosteNom(employee.position || employee.poste_id) || '-',
-                            employee.contract_state || '-',
-                            employee.contract_duration_months ? employee.contract_duration_months + ' mois' : '-',
-                            `<div class="btn-group">
-                                <button class="btn btn-sm btn-primary edit-employee" data-id="${employee.id}">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger delete-employee" data-id="${employee.id}">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>`
-                        ]);
-                    });
-                    
-                    table.draw();
-                } else {
-                    console.error("Erreur lors du chargement des employés:", response.error);
-                    showAlert("Erreur lors du chargement des employés", "danger");
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error("Erreur AJAX:", error);
-                showAlert("Erreur lors du chargement des employés", "danger");
-            }
-        });
-    }
-
-    // Gestionnaire pour le bouton d'édition
-    $('#employeesTable').on('click', '.edit-btn', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const employeeId = $(this).data('id');
-        
-        $.ajax({
-            url: `/api/employees/${employeeId}`,
-            method: 'GET',
-            success: function(response) {
-                // Remplir le formulaire avec les données
-                $('#lastName').val(response.last_name || '');
-                $('#firstName').val(response.first_name || '');
-                $('#position').val(response.position || '');
-                $('#gender').val(response.gender || '');
-                $('#birthDate').val(response.birth_date || '');
-                $('#location').val(response.location || '');
-                $('#region').val(response.region || '');
-                $('#departement').val(response.departement || '');
-                $('#sousprefecture').val(response.sousprefecture || '');
-                $('#additionalInfo').val(response.additional_info || '');
-                $('#contractDuration').val(response.contract_duration || ''); // Ajout de la durée du contrat
-                
-                // Stocker l'ID pour la mise à jour
-                currentEmployeeId = employeeId;
-                
-                // Mettre à jour le titre du modal
-                $('#addEmployeeModal .modal-title').html('<i class="fas fa-user-edit me-2"></i>Modifier un Employé');
-                
-                // Afficher le modal
-                $('#addEmployeeModal').modal('show');
-            },
-            error: function(xhr) {
-                console.error('Erreur lors du chargement:', xhr.responseJSON);
-                showAlert('Erreur lors du chargement des données', 'danger');
-            }
-        });
-    });
-
-    // Gestionnaire pour le formulaire d'ajout/modification
-    $('#addEmployeeForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        const startDate = $('#contractStartDate').val() || new Date().toISOString().split('T')[0];
-        const isExpired = $('#contractExpired').is(':checked');
-        
-        const formData = {
-            first_name: $('#firstName').val(),
-            last_name: $('#lastName').val(),
-            position: $('#poste').val() === 'autre' ? $('#autrePoste').val() : $('#poste').val(),
-            gender: $('#gender').val(),
-            birth_date: $('#birthDate').val(),
-            location: $('input[name="location"]:checked').val(),
-            region: $('#region').val(),
-            departement: $('#departement').val(),
-            sousprefecture: $('#sousprefecture').val(),
-            additional_info: $('#additionalInfo').val(),
-            contract_duration: $('#contractDuration').val(),
-            contract_start_date: startDate,
-            additional_terms: $('#additionalTerms').val(),
-            contract_expired: isExpired
-        };
-
-        const url = currentEmployeeId ? 
-            `/api/employees/${currentEmployeeId}` : 
-            '/api/employees';
-
-        $.ajax({
-            url: url,
-            method: currentEmployeeId ? 'PUT' : 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(formData),
-            success: function(response) {
-                $('#addEmployeeModal').modal('hide');
-                employeesTable.ajax.reload();
-                showAlert('Employé ' + (currentEmployeeId ? 'modifié' : 'ajouté') + ' avec succès!', 'success');
-            },
-            error: function(xhr) {
-                showAlert('Erreur lors de l\'opération: ' + xhr.responseText, 'danger');
-            }
-        });
-    });
-
-    // Gestionnaire pour le bouton de suppression
-    $('#employeesTable').on('click', '.delete-btn', function(e) {
-        e.preventDefault();
-        const employeeId = $(this).data('id');
-        
-        if (confirm('Êtes-vous sûr de vouloir supprimer cet employé ?')) {
-            $.ajax({
-                url: `/api/employees/${employeeId}`,
-                method: 'DELETE',
-                success: function(response) {
-                    showAlert(response.message || 'Employé supprimé avec succès', 'success');
-                    employeesTable.ajax.reload();
-                },
-                error: function(xhr) {
-                    showAlert(xhr.responseJSON?.error || 'Erreur lors de la suppression', 'danger');
-                    console.error('Erreur:', xhr.responseJSON);
-                }
-            });
-        }
-    });
-
-    // Gestionnaire pour le bouton de reconduction
-    $('#renewContractBtn').on('click', function() {
-        const selectedRows = employeesTable.rows({ selected: true }).data().toArray();
-        const expiredContracts = selectedRows.filter(row => 
-            row.contract && row.contract.status === 'Expiré'
-        );
-        
-        if (expiredContracts.length > 0) {
-            const firstEmployee = expiredContracts[0];
-            
-            // Pré-remplir le formulaire
-            $('#renewPoste').val(firstEmployee.position || '');
-            $('#renewSituation').val(firstEmployee.availability || '');
-            $('#startDate').val(new Date().toISOString().split('T')[0]);
-            
-            // Stocker les IDs
-            $('#renewContractModal')
-                .data('selectedIds', expiredContracts.map(row => row.id))
-                .modal('show');
-        }
-    });
-
-    // Gestionnaire de confirmation de reconduction
-    $('#confirmRenewBtn').on('click', function() {
-        const selectedIds = $('#renewContractModal').data('selectedIds');
-        const newDuration = $('#newDuration').val();
-        const startDate = $('#startDate').val();
-        const poste = $('#renewPoste').val();
-        const situation = $('#renewSituation').val();
-
-        if (!newDuration || !startDate || !poste || !situation || !selectedIds?.length) {
-            showAlert('Veuillez remplir tous les champs', 'danger');
+        if (!data || data.length === 0) {
+            showAlert('Aucune donnée à exporter', 'warning');
             return;
         }
 
-        const endDate = new Date(startDate);
-        endDate.setMonth(endDate.getMonth() + parseInt(newDuration));
+        // Créer les données pour le tableau PDF
+        const tableBody = [
+            // En-tête
+            [
+                { text: 'Région', style: 'tableHeader' },
+                { text: 'Département', style: 'tableHeader' },
+                { text: 'Sous-préfecture', style: 'tableHeader' },
+                { text: 'Nom', style: 'tableHeader' },
+                { text: 'Prénom', style: 'tableHeader' },
+                { text: 'Genre', style: 'tableHeader' },
+                { text: 'Âge', style: 'tableHeader' },
+                { text: 'Poste', style: 'tableHeader' },
+                { text: 'Statut', style: 'tableHeader' },
+                { text: 'Durée', style: 'tableHeader' }
+            ]
+        ];
 
-        $.ajax({
-            url: '/api/contracts/renew',
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({
-                employee_ids: selectedIds,
-                start_date: startDate,
-                end_date: endDate.toISOString().split('T')[0],
-                duration: parseInt(newDuration),
-                position: poste,
-                availability: situation
-            }),
-            success: function(response) {
-                $('#renewContractModal').modal('hide');
-                showAlert('Les contrats ont été reconduits avec succès', 'success');
-                employeesTable.ajax.reload();
-                
-                // Désélectionner toutes les lignes après la reconduction
-                employeesTable.rows().deselect();
-            },
-            error: function(xhr) {
-                showAlert('Erreur lors de la reconduction des contrats', 'danger');
-                console.error('Erreur:', xhr.responseJSON);
-            }
+        // Ajouter les données
+        data.forEach(row => {
+            tableBody.push([
+                row.region_nom || '-',
+                row.departement_nom || '-',
+                row.sous_prefecture_nom || '-',
+                row.last_name || '-',
+                row.first_name || '-',
+                row.gender || '-',
+                row.birth_date ? calculateAge(new Date(row.birth_date)) + ' ans' : '-',
+                row.poste || '-',
+                row.contract ? row.contract.status : '-',
+                row.contract_duration_months ? row.contract_duration_months + ' mois' : '-'
+            ]);
         });
-    });
 
-    // Gestionnaire pour le bouton de visualisation des contrats
-    $('#employeesTable').on('click', '.view-btn', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const employeeId = $(this).data('id');
-        
-        $.ajax({
-            url: `/api/employees/${employeeId}/contracts`,
-            method: 'GET',
-            success: function(response) {
-                // Construire le contenu du modal
-                let modalContent = `
-                    <h5>Historique des contrats de ${response.employee.first_name} ${response.employee.last_name}</h5>
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>Début</th>
-                                    <th>Fin</th>
-                                    <th>Statut</th>
-                                    <th>Poste</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                `;
-                
-                response.contracts.forEach(contract => {
-                    const statusClass = contract.status === 'En cours' ? 'badge bg-success' : 'badge bg-danger';
-                    modalContent += `
-                        <tr>
-                            <td>${contract.type || ''}</td>
-                            <td>${formatDate(contract.start_date) || ''}</td>
-                            <td>${formatDate(contract.end_date) || ''}</td>
-                            <td><span class="${statusClass}">${contract.status || ''}</span></td>
-                            <td>${contract.position || 'Non spécifié'}</td>
-                        </tr>
-                    `;
-                });
-                
-                modalContent += `
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-                
-                // Mettre à jour et afficher le modal
-                $('#viewContractsModal .modal-body').html(modalContent);
-                $('#viewContractsModal').modal('show');
+        // Configuration du document PDF
+        const docDefinition = {
+            pageOrientation: 'landscape',
+            pageSize: 'A4',
+            pageMargins: [20, 40, 20, 40],
+            header: {
+                text: 'Liste des Employés PRESFOR',
+                alignment: 'center',
+                margin: [0, 20, 0, 20],
+                fontSize: 16,
+                bold: true
             },
-            error: function(xhr) {
-                console.error('Erreur lors du chargement des contrats:', xhr.responseJSON);
-                showAlert('Erreur lors du chargement de l\'historique des contrats', 'danger');
+            footer: function(currentPage, pageCount) {
+                return {
+                    text: `Page ${currentPage} sur ${pageCount}`,
+                    alignment: 'center',
+                    margin: [0, 10, 0, 0]
+                };
+            },
+            content: [
+                {
+                    text: new Date().toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }),
+                    alignment: 'right',
+                    margin: [0, 0, 0, 10]
+                },
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: Array(10).fill('auto'),
+                        body: tableBody
+                    }
+                }
+            ],
+            styles: {
+                tableHeader: {
+                    bold: true,
+                    fontSize: 10,
+                    fillColor: '#059669',
+                    color: 'white',
+                    alignment: 'center',
+                    margin: [2, 4, 2, 4]
+                }
+            },
+            defaultStyle: {
+                fontSize: 9,
+                alignment: 'left'
             }
-        });
-    });
+        };
 
-    // Réinitialisation du formulaire lors de la fermeture du modal
-    $('#addEmployeeModal').on('hidden.bs.modal', function() {
-        $('#addEmployeeForm')[0].reset();
-        currentEmployeeId = null;
-        $('.modal-title').html('<i class="fas fa-user-plus me-2"></i>Ajouter un Employé');
-    });
+        // Générer et télécharger le PDF
+        try {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('fr-FR').replace(/\//g, '-');
+            const timeStr = now.toLocaleTimeString('fr-FR').replace(/:/g, '-');
+            const fileName = `Liste_Employés_PRESFOR_${dateStr}_${timeStr}.pdf`;
 
-    // Initialisation des autres fonctionnalités
-    initializeRenewContractHandlers();
-    loadStats();
-    
-    // Actualisation automatique des statistiques
-    setInterval(loadStats, 30000);
-
-    // Ajouter les gestionnaires d'événements pour la vérification de l'expiration
-    $('#contractStartDate, #contractDuration').on('change', checkContractExpiration);
-    
-    // Vérifier l'expiration lors de l'ouverture du modal
-    $('#addEmployeeModal').on('shown.bs.modal', checkContractExpiration);
-
-    // Fonction pour mettre à jour l'heure
-    function updateTime() {
-        const now = new Date();
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-        $('#currentTime').text(`${hours}:${minutes}:${seconds}`);
+            pdfMake.createPdf(docDefinition).download(fileName);
+        } catch (error) {
+            console.error('Erreur lors de la création du PDF:', error);
+            showAlert('Erreur lors de la création du PDF', 'danger');
+        }
+    } catch (error) {
+        console.error('Erreur lors de l\'exportation PDF:', error);
+        showAlert('Erreur lors de l\'exportation PDF', 'danger');
     }
+}
 
+// Gestionnaire d'événement pour l'export PDF
+$('#exportPDF').off('click').on('click', function() {
+    exportToPDF();
+});
+
+// Fonction pour charger le nom de l'opérateur
+function loadOperatorName() {
+    $.ajax({
+        url: '/api/current-operator',
+        method: 'GET',
+        success: function(response) {
+            if (response.success && response.operator) {
+                $('#operatorName').text(response.operator.name);
+                // Stocker l'ID de l'opérateur pour une utilisation ultérieure
+                window.currentOperatorId = response.operator.id;
+            } else {
+                console.error('Erreur:', response.message);
+                $('#operatorName').text('Utilisateur');
+            }
+        },
+        error: function(xhr) {
+            console.error('Erreur lors du chargement du nom de l\'opérateur:', xhr);
+            $('#operatorName').text('Utilisateur');
+        }
+    });
+}
+
+// Initialisation au chargement de la page
+$(document).ready(function() {
+    // Charger le nom de l'opérateur
+    loadOperatorName();
+    
     // Mettre à jour l'heure toutes les secondes
     setInterval(updateTime, 1000);
-
-    // Mettre à jour l'heure immédiatement au chargement
     updateTime();
+    
+    // ... le reste du code existant ...
 });
+
+// Fonction pour mettre à jour l'heure
+function updateTime() {
+    const now = new Date();
+    const options = { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false 
+    };
+    $('#currentTime').text(now.toLocaleTimeString('fr-FR', options));
+}
+
+// Fonction pour charger le nom de l'opérateur
+function loadOperatorName() {
+    $.ajax({
+        url: '/api/current-operator',
+        method: 'GET',
+        success: function(response) {
+            if (response.success && response.operator) {
+                $('#operatorName').text(response.operator.name);
+                // Stocker l'ID de l'opérateur pour une utilisation ultérieure
+                window.currentOperatorId = response.operator.id;
+            } else {
+                console.error('Erreur:', response.message);
+                $('#operatorName').text('Utilisateur');
+            }
+        },
+        error: function(xhr) {
+            console.error('Erreur lors du chargement du nom de l\'opérateur:', xhr);
+            $('#operatorName').text('Utilisateur');
+        }
+    });
+}
 
 // Fonction pour afficher les détails d'un employé
 function showEmployeeDetails(employeeId) {
-    $.get(`/api/employees/${employeeId}/contracts`)
-        .done(function(response) {
+    $.ajax({
+        url: `/api/employees/${employeeId}`,
+        method: 'GET',
+        success: function(response) {
+            console.log('Données reçues:', response); // Pour le débogage
+            
+            // Remplir le formulaire avec les données
+            $('#firstName').val(response.first_name || '');
+            $('#lastName').val(response.last_name || '');
+            $('#poste').val(response.poste_id || '');
+            $('#gender').val(response.gender || '');
+            $('#birthDate').val(response.birth_date || '');
+            $('#region').val(response.region_id || '');
+            $('#departement').val(response.departement_id || '');
+            $('#sousprefecture').val(response.sous_prefecture_id || '');
+            $('#additionalInfo').val(response.additional_info || '');
+            $('#contractDuration').val(response.contract_duration_months || '');
+            $('#position').val(response.position || '');
+            $('#contact').val(response.contact || '');
+            
+            // Stocker l'ID pour la mise à jour
+            currentEmployeeId = employeeId;
+            
             // Mettre à jour le titre du modal
-            $('#employeeDetailsModalLabel').text(`Historique des contrats de ${response.employee.first_name} ${response.employee.last_name}`);
-            
-            // Construire le tableau des contrats
-            let contractsHtml = `
-                <div class="table-responsive">
-                    <table class="table table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Début</th>
-                                <th>Fin</th>
-                                <th>Statut</th>
-                                <th>Poste</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            
-            response.contracts.forEach(contract => {
-                const statusClass = contract.status === 'En cours' ? 'badge bg-success' : 'badge bg-danger';
-                contractsHtml += `
-                    <tr>
-                        <td>${contract.type || ''}</td>
-                        <td>${formatDate(contract.start_date) || ''}</td>
-                        <td>${formatDate(contract.end_date) || ''}</td>
-                        <td><span class="${statusClass}">${contract.status || ''}</span></td>
-                        <td>${contract.position || 'Non spécifié'}</td>
-                    </tr>
-                `;
-            });
-            
-            contractsHtml += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            
-            // Injecter le HTML dans le modal
-            $('#employeeDetailsModal .modal-body').html(contractsHtml);
+            $('#addEmployeeModal .modal-title').html('<i class="fas fa-user-edit me-2"></i>Modifier un Employé');
             
             // Afficher le modal
-            $('#employeeDetailsModal').modal('show');
-        })
-        .fail(function(xhr) {
-            console.error('Erreur lors de la récupération des contrats:', xhr.responseText);
-            showAlert('Erreur lors de la récupération des contrats', 'danger');
-        });
+            $('#addEmployeeModal').modal('show');
+        },
+        error: function(xhr) {
+            console.error('Erreur lors du chargement:', xhr.responseJSON);
+            showAlert('Erreur lors du chargement des données', 'danger');
+        }
+    });
 }
+
+// Gestionnaire pour le formulaire d'ajout/modification
+$('#addEmployeeForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = {
+        first_name: $('#firstName').val(),
+        last_name: $('#lastName').val(),
+        poste_id: $('#poste').val(),
+        gender: $('#gender').val(),
+        birth_date: $('#birthDate').val(),
+        region_id: $('#region').val(),
+        departement_id: $('#departement').val(),
+        sous_prefecture_id: $('#sousprefecture').val(),
+        additional_info: $('#additionalInfo').val(),
+        contract_duration_months: parseInt($('#contractDuration').val()) || 0,
+        position: $('#position').val(),
+        contact: $('#contact').val()
+    };
+
+    const url = currentEmployeeId ? 
+        `/api/employees/${currentEmployeeId}` : 
+        '/api/employees';
+
+    $.ajax({
+        url: url,
+        method: currentEmployeeId ? 'PUT' : 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(formData),
+        success: function(response) {
+            $('#addEmployeeModal').modal('hide');
+            loadEmployees(); // Recharger la table
+            showAlert('Employé ' + (currentEmployeeId ? 'modifié' : 'ajouté') + ' avec succès!', 'success');
+            currentEmployeeId = null; // Réinitialiser l'ID
+        },
+        error: function(xhr) {
+            showAlert('Erreur lors de l\'opération: ' + (xhr.responseJSON?.error || 'Une erreur est survenue'), 'danger');
+        }
+    });
+});
 
 // Fonction pour formater une date
 function formatDate(dateStr) {
-    if (!dateStr) return '';
+    if (!dateString) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('fr-FR');
 }
@@ -1224,4 +695,486 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Gestionnaire pour le switch de thème
     document.querySelector('.theme-switch input[type="checkbox"]').addEventListener('change', toggleTheme);
+});
+
+// Gestionnaire pour le bouton de reconduction
+$(document).on('click', '.btn-renew', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const employeeId = $(this).data('id');
+    const firstName = $(this).data('first-name');
+    const lastName = $(this).data('last-name');
+    console.log('Clic sur le bouton de reconduction:', employeeId, firstName, lastName);
+    openRenewModal(employeeId, firstName, lastName);
+});
+
+// Fonction pour ouvrir le modal de reconduction
+function openRenewModal(employeeId, firstName, lastName) {
+    console.log('Ouverture du modal de reconduction pour:', employeeId);
+    
+    // Réinitialiser le formulaire
+    $('#renewContractForm')[0].reset();
+    
+    // Définir les valeurs de base
+    $('#renewEmployeeId').val(employeeId);
+    $('#renewFirstName').val(firstName);
+    $('#renewLastName').val(lastName);
+    
+    // Désactiver les champs de localisation par défaut
+    $('#renewRegion, #renewDepartement, #renewSousprefecture').prop('disabled', true);
+    
+    // Définir la date de début par défaut à aujourd'hui
+    const today = new Date().toISOString().split('T')[0];
+    $('#renewStartDate').val(today);
+    
+    // Déclencher le calcul de la date de fin
+    $('#renewDuration').trigger('change');
+    
+    try {
+        const modalElement = document.getElementById('renewContractModal');
+        if (!modalElement) {
+            console.error('Modal element not found');
+            showAlert('Erreur: Modal non trouvé', 'danger');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } catch (error) {
+        console.error('Erreur lors de l\'ouverture du modal:', error);
+        showAlert('Erreur lors de l\'ouverture du modal de reconduction', 'danger');
+    }
+}
+
+// Fonction pour calculer la date de fin du contrat dans le modal de reconduction
+function calculateRenewEndDate() {
+    const startDate = $('#renewStartDate').val();
+    const duration = parseInt($('#renewDuration').val());
+    
+    if (startDate && !isNaN(duration)) {
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + duration);
+        $('#renewEndDate').val(endDate.toISOString().split('T')[0]);
+    }
+}
+
+// Gestionnaire pour les changements de date de début et durée dans le modal de reconduction
+$('#renewStartDate, #renewDuration').on('change input', calculateRenewEndDate);
+
+// Gestionnaire pour la soumission du formulaire de reconduction
+$('#submitRenewContract').on('click', function(e) {
+    e.preventDefault();
+    submitRenewContract();
+});
+
+// Fonction pour soumettre le formulaire de reconduction
+function submitRenewContract() {
+    const formData = {
+        employee_ids: [$('#renewEmployeeId').val()],
+        start_date: $('#renewStartDate').val(),
+        duration: $('#renewDuration').val(),
+        position: $('#renewPosition').val(),
+        categorie: $('#renewCategorie').val(),
+        diplome: $('#renewDiplome').val(),
+        ecole: $('#renewEcole').val(),
+        location: $('input[name="renewLocation"]:checked').val(),
+        region: $('#renewRegion').val(),
+        departement: $('#renewDepartement').val(),
+        sousprefecture: $('#renewSousprefecture').val()
+    };
+
+    // Validation des champs requis
+    if (!formData.start_date || !formData.duration || !formData.position || 
+        !formData.categorie || !formData.diplome || !formData.ecole) {
+        showAlert('Veuillez remplir tous les champs obligatoires', 'warning');
+        return;
+    }
+
+    // Si "À l'intérieur" est sélectionné, vérifier les champs de localisation
+    if (formData.location === 'interieur' && 
+        (!formData.region || !formData.departement || !formData.sousprefecture)) {
+        showAlert('Veuillez sélectionner la localisation complète', 'warning');
+        return;
+    }
+
+    $.ajax({
+        url: '/api/employees/renew',
+        method: 'POST',
+        data: JSON.stringify(formData),
+        contentType: 'application/json',
+        success: function(response) {
+            if (response.success) {
+                $('#renewContractModal').modal('hide');
+                showAlert('Le contrat a été renouvelé avec succès', 'success');
+                loadEmployees();
+            } else {
+                showAlert(response.error || 'Erreur lors du renouvellement du contrat', 'danger');
+            }
+        },
+        error: function(xhr) {
+            console.error('Erreur lors du renouvellement du contrat:', xhr.responseJSON);
+            showAlert(xhr.responseJSON?.error || 'Erreur lors du renouvellement du contrat', 'danger');
+        }
+    });
+}
+
+// Charger les données au moment de l'ouverture du modal de reconduction
+$('#renewContractModal').on('show.bs.modal', function() {
+    // Charger les postes
+    $.get('/api/postes', function(data) {
+        const select = $('#renewPosition');
+        select.empty().append('<option value="">Sélectionner un poste</option>');
+        data.forEach(poste => {
+            select.append(`<option value="${poste.id}">${poste.nom}</option>`);
+        });
+    });
+
+    // Charger les catégories
+    $.get('/api/categories', function(data) {
+        const select = $('#renewCategorie');
+        select.empty().append('<option value="">Sélectionner une catégorie</option>');
+        data.forEach(cat => {
+            select.append(`<option value="${cat.id}">${cat.nom}</option>`);
+        });
+    });
+
+    // Charger les diplômes
+    $.get('/api/diplomes', function(data) {
+        const select = $('#renewDiplome');
+        select.empty().append('<option value="">Sélectionner un diplôme</option>');
+        data.forEach(diplome => {
+            select.append(`<option value="${diplome.id}">${diplome.nom}</option>`);
+        });
+    });
+
+    // Charger les écoles
+    $.get('/api/ecoles', function(data) {
+        const select = $('#renewEcole');
+        select.empty().append('<option value="">Sélectionner une école</option>');
+        data.forEach(ecole => {
+            select.append(`<option value="${ecole.id}">${ecole.nom}</option>`);
+        });
+    });
+
+    // Charger les régions
+    $.get('/api/regions', function(data) {
+        const select = $('#renewRegion');
+        select.empty().append('<option value="">Sélectionner une région</option>');
+        data.forEach(region => {
+            select.append(`<option value="${region.id}">${region.nom}</option>`);
+        });
+    });
+});
+
+// Gestionnaire pour le changement de situation géographique dans le modal de reconduction
+$('input[name="renewLocation"]').on('change', function() {
+    const isInterieur = $(this).val() === 'interieur';
+    $('#renewRegion, #renewDepartement, #renewSousprefecture').prop('disabled', !isInterieur);
+    if (!isInterieur) {
+        $('#renewRegion, #renewDepartement, #renewSousprefecture').val('');
+    }
+});
+
+// Gestionnaire pour le changement de région dans le modal de reconduction
+$('#renewRegion').on('change', function() {
+    const regionId = $(this).val();
+    if (regionId) {
+        $.get(`/api/departements/${regionId}`, function(data) {
+            const select = $('#renewDepartement');
+            select.empty().append('<option value="">Sélectionner un département</option>');
+            data.forEach(dept => {
+                select.append(`<option value="${dept.id}">${dept.nom}</option>`);
+            });
+            select.prop('disabled', false);
+        });
+    }
+});
+
+// Gestionnaire pour le changement de département dans le modal de reconduction
+$('#renewDepartement').on('change', function() {
+    const deptId = $(this).val();
+    if (deptId) {
+        $.get(`/api/sous-prefectures/${deptId}`, function(data) {
+            const select = $('#renewSousprefecture');
+            select.empty().append('<option value="">Sélectionner une sous-préfecture</option>');
+            data.forEach(sp => {
+                select.append(`<option value="${sp.id}">${sp.nom}</option>`);
+            });
+            select.prop('disabled', false);
+        });
+    }
+});
+
+// Initialisation des modals Bootstrap au chargement de la page
+let addEmployeeModal;
+
+$(document).ready(function() {
+    // Initialiser le modal une seule fois
+    addEmployeeModal = new bootstrap.Modal(document.getElementById('addEmployeeModal'), {
+        backdrop: 'static',
+        keyboard: false
+    });
+});
+
+// Gestionnaire pour le bouton d'édition
+$(document).on('click', '.edit-employee', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const employeeId = $(this).data('id');
+    console.log('Edition employé:', employeeId);
+    
+    // Réinitialiser le formulaire
+    $('#addEmployeeForm')[0].reset();
+    
+    // Mettre à jour le titre du modal
+    $('#addEmployeeModal .modal-title').html('<i class="fas fa-user-edit me-2"></i>Modifier un Employé');
+    
+    // Charger les données de l'employé
+    $.ajax({
+        url: `/api/employees/${employeeId}`,
+        method: 'GET',
+        beforeSend: function() {
+            $('.loader').addClass('loading');
+        },
+        success: function(response) {
+            console.log('Réponse reçue:', response);
+            
+            if (response.success && response.employee) {
+                const employee = response.employee;
+                console.log('Données employé:', employee);
+                
+                // Remplir le formulaire avec les données de l'employé
+                $('<input>').attr({
+                    type: 'hidden',
+                    id: 'employeeId',
+                    name: 'id',
+                    value: employee.id
+                }).appendTo('#addEmployeeForm');
+                
+                $('#lastName').val(employee.last_name || '');
+                $('#firstName').val(employee.first_name || '');
+                $('#birthDate').val(employee.birth_date ? employee.birth_date.split('T')[0] : '');
+                $('#gender').val(employee.gender || '');
+                $('#contact').val(employee.contact || '');
+                
+                // Gérer la situation géographique
+                if (employee.region_id) {
+                    $('#aLInterieur').prop('checked', true).trigger('change');
+                    $('#locationFields select').prop('disabled', false);
+                    
+                    // Charger et sélectionner la région
+                    $.get('/api/regions', function(data) {
+                        if (data.success) {
+                            const regionSelect = $('#region');
+                            regionSelect.empty().append('<option value="">Sélectionner une région</option>');
+                            data.regions.forEach(function(region) {
+                                regionSelect.append(`<option value="${region.id}">${region.nom}</option>`);
+                            });
+                            regionSelect.val(employee.region_id).trigger('change');
+                            
+                            // Charger et sélectionner le département
+                            $.get(`/api/departements/${employee.region_id}`, function(data) {
+                                if (data.success) {
+                                    const departementSelect = $('#departement');
+                                    departementSelect.empty().append('<option value="">Sélectionner un département</option>');
+                                    data.departements.forEach(function(departement) {
+                                        departementSelect.append(`<option value="${departement.id}">${departement.nom}</option>`);
+                                    });
+                                    departementSelect.val(employee.departement_id).trigger('change');
+                                    
+                                    // Charger et sélectionner la sous-préfecture
+                                    if (employee.departement_id) {
+                                        $.get(`/api/sous-prefectures/${employee.departement_id}`, function(data) {
+                                            if (data.success) {
+                                                const spSelect = $('#sousprefecture');
+                                                spSelect.empty().append('<option value="">Sélectionner une sous-préfecture</option>');
+                                                data.sous_prefectures.forEach(function(sp) {
+                                                    spSelect.append(`<option value="${sp.id}">${sp.nom}</option>`);
+                                                });
+                                                spSelect.val(employee.sous_prefecture_id);
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+                } else {
+                    $('#auSiege').prop('checked', true).trigger('change');
+                }
+                
+                // Remplir les données du contrat
+                if (employee.contract_start_date) {
+                    $('#contractStartDate').val(employee.contract_start_date.split('T')[0]);
+                }
+                $('#contractDuration').val(employee.contract_duration_months || '3');
+                
+                // Sélectionner le poste
+                if (employee.poste_id) {
+                    $('#poste').val(employee.poste_id);
+                }
+                
+                // Afficher le modal
+                try {
+                    addEmployeeModal.show();
+                } catch (error) {
+                    console.error('Erreur lors de l\'affichage du modal:', error);
+                    // Fallback si l'instance du modal n'est pas disponible
+                    $('#addEmployeeModal').modal('show');
+                }
+            } else {
+                console.error('Erreur:', response.message);
+                showAlert("Erreur lors du chargement des données de l'employé", "danger");
+            }
+        },
+        error: function(xhr) {
+            console.error('Erreur AJAX:', xhr);
+            showAlert("Erreur lors du chargement des données de l'employé", "danger");
+        },
+        complete: function() {
+            $('.loader').removeClass('loading');
+        }
+    });
+});
+
+// Gestionnaire pour les boutons radio de localisation
+$('input[name="location"]').on('change', function() {
+    const isInterieur = $('#aLInterieur').is(':checked');
+    $('#locationFields select').prop('disabled', !isInterieur);
+    if (!isInterieur) {
+        $('#locationFields select').val('');
+    }
+});
+
+// Gestionnaire pour le bouton de visualisation des contrats
+$(document).on('click', '.view-contracts', function(e) {
+    e.preventDefault();
+    const employeeId = $(this).data('id');
+    const firstName = $(this).data('first-name');
+    const lastName = $(this).data('last-name');
+    
+    // Mettre à jour le titre du modal avec le nom de l'employé
+    $('#viewContractsModal .modal-title').html(`
+        <i class="fas fa-history me-2"></i>Historique des Contrats - ${firstName} ${lastName}
+    `);
+    
+    // Stocker l'ID de l'employé dans le modal pour l'export
+    $('#viewContractsModal').data('employee-id', employeeId);
+    
+    // Charger l'historique des contrats
+    $.ajax({
+        url: `/api/employees/${employeeId}/contracts`,
+        method: 'GET',
+        beforeSend: function() {
+            $('.loader').addClass('loading');
+            $('#contractsTableBody').html('<tr><td colspan="5" class="text-center">Chargement...</td></tr>');
+        },
+        success: function(response) {
+            if (response.success && response.contracts) {
+                let html = '';
+                response.contracts.forEach(function(contract) {
+                    const startDate = contract.start_date ? new Date(contract.start_date).toLocaleDateString() : '-';
+                    const endDate = contract.end_date ? new Date(contract.end_date).toLocaleDateString() : '-';
+                    const duration = contract.duration_months ? `${contract.duration_months} mois` : '-';
+                    const statusClass = contract.status === 'Expiré' ? 'text-danger' : 'text-success';
+                    
+                    html += `
+                        <tr>
+                            <td>${startDate}</td>
+                            <td>${endDate}</td>
+                            <td>${duration}</td>
+                            <td>${contract.position || '-'}</td>
+                            <td><span class="${statusClass}">${contract.status || '-'}</span></td>
+                        </tr>
+                    `;
+                });
+                $('#contractsTableBody').html(html || '<tr><td colspan="5" class="text-center">Aucun contrat trouvé</td></tr>');
+            } else {
+                $('#contractsTableBody').html('<tr><td colspan="5" class="text-center">Aucun contrat trouvé</td></tr>');
+            }
+        },
+        error: function(xhr) {
+            console.error('Erreur:', xhr);
+            $('#contractsTableBody').html('<tr><td colspan="5" class="text-center text-danger">Erreur lors du chargement des contrats</td></tr>');
+            showAlert("Erreur lors du chargement des contrats", "danger");
+        },
+        complete: function() {
+            $('.loader').removeClass('loading');
+        }
+    });
+    
+    // Ouvrir le modal
+    const modal = new bootstrap.Modal(document.getElementById('viewContractsModal'));
+    modal.show();
+});
+
+// Gestionnaire pour l'export Excel des contrats
+$('#exportContractsExcel').on('click', function() {
+    const employeeId = $('#viewContractsModal').data('employee-id');
+    const employeeName = $('#viewContractsModal .modal-title').text().split('-')[1].trim();
+    
+    // Récupérer les données du tableau
+    const data = [];
+    $('#contractsTableBody tr').each(function() {
+        const row = [];
+        $(this).find('td').each(function() {
+            row.push($(this).text().trim());
+        });
+        data.push(row);
+    });
+    
+    // Créer le workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+        ['Date de début', 'Date de fin', 'Durée', 'Poste', 'Statut'],
+        ...data
+    ]);
+    
+    // Ajouter la feuille au workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Contrats');
+    
+    // Générer le fichier Excel
+    XLSX.writeFile(wb, `Contrats_${employeeName}.xlsx`);
+});
+
+// Gestionnaire pour l'export PDF des contrats
+$('#exportContractsPDF').on('click', function() {
+    const employeeName = $('#viewContractsModal .modal-title').text().split('-')[1].trim();
+    
+    // Récupérer les données du tableau
+    const tableBody = [];
+    $('#contractsTableBody tr').each(function() {
+        const row = [];
+        $(this).find('td').each(function() {
+            row.push($(this).text().trim());
+        });
+        tableBody.push(row);
+    });
+    
+    // Définir le document
+    const docDefinition = {
+        content: [
+            { text: `Historique des Contrats - ${employeeName}`, style: 'header' },
+            {
+                table: {
+                    headerRows: 1,
+                    body: [
+                        ['Date de début', 'Date de fin', 'Durée', 'Poste', 'Statut'],
+                        ...tableBody
+                    ]
+                }
+            }
+        ],
+        styles: {
+            header: {
+                fontSize: 18,
+                bold: true,
+                margin: [0, 0, 0, 10]
+            }
+        }
+    };
+    
+    // Générer le PDF
+    pdfMake.createPdf(docDefinition).download(`Contrats_${employeeName}.pdf`);
 });

@@ -122,21 +122,6 @@ CREATE TABLE contracts (
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 )
 
-CREATE TABLE postes (
-    id TEXT PRIMARY KEY,
-    titre TEXT NOT NULL,
-    categorie TEXT NOT NULL,
-    description TEXT,
-    niveau_experience TEXT,
-    responsabilites TEXT,
-    competences_requises TEXT,
-    departement TEXT,  -- Pour organiser les postes par département fonctionnel
-    statut TEXT DEFAULT 'Actif',  -- Pour gérer si le poste est actif ou non
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME,
-    deleted_at DATETIME
-, type_poste_id INTEGER REFERENCES type_poste(id))
-
 CREATE TABLE acteurs_type (
     id TEXT PRIMARY KEY,
     nom TEXT NOT NULL,
@@ -285,4 +270,19 @@ CREATE TABLE applications (
 	FOREIGN KEY(operator_id) REFERENCES operators (id), 
 	FOREIGN KEY(job_id) REFERENCES jobs (id)
 )
+
+CREATE TABLE "postes" (
+                id TEXT PRIMARY KEY,
+                titre TEXT NOT NULL,
+                description TEXT,
+                niveau_experience TEXT,
+                responsabilites TEXT,
+                competences_requises TEXT,
+                departement TEXT,
+                statut TEXT DEFAULT 'Actif',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME,
+                deleted_at DATETIME,
+                type_poste_id INTEGER REFERENCES type_poste(id)
+            )
 
