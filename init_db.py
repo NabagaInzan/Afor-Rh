@@ -40,6 +40,56 @@ def init_database():
         updated_at TEXT NOT NULL
     )
     """)
+
+    # Créer la table des employés si elle n'existe pas
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS employees (
+        id TEXT PRIMARY KEY,
+        operator_id TEXT NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        gender TEXT,
+        birth_date TEXT,
+        contact TEXT,
+        email TEXT,
+        poste_id TEXT,
+        categorie_id TEXT,
+        diplome_id TEXT,
+        ecole_id TEXT,
+        location TEXT,
+        region_id TEXT,
+        departement_id TEXT,
+        sous_prefecture_id TEXT,
+        contract_duration INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (operator_id) REFERENCES operators (id) ON DELETE CASCADE
+    )
+    """)
+
+    # Créer la table des contrats si elle n'existe pas
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS contracts (
+        id TEXT PRIMARY KEY,
+        employee_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        salary TEXT,
+        poste_id TEXT,
+        categorie_id TEXT,
+        diplome_id TEXT,
+        ecole_id TEXT,
+        location TEXT,
+        region_id TEXT,
+        departement_id TEXT,
+        sous_prefecture_id TEXT,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
+    )
+    """)
     
     # Ajouter l'administrateur par défaut s'il n'existe pas
     now = datetime.now().isoformat()

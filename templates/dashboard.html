@@ -1411,11 +1411,12 @@
                     
                     if (data.success) {
                         data.departements.forEach(dept => {
-                            const option = document.createElement('option');
-                            option.value = dept.id;
-                            option.textContent = dept.name;
-                            departementSelect.appendChild(option);
+                            const option = new Option(dept.name, dept.id);
+                            departementSelect.add(option);
                         });
+                        console.log(`${data.departements.length} départements chargés`);
+                    } else {
+                        console.error('Erreur lors du chargement des départements:', data.error);
                     }
                 } catch (error) {
                     console.error('Erreur lors du chargement des départements:', error);
@@ -1435,11 +1436,12 @@
                     
                     if (data.success) {
                         data.sousprefectures.forEach(sp => {
-                            const option = document.createElement('option');
-                            option.value = sp.id;
-                            option.textContent = sp.name;
-                            sousprefectureSelect.appendChild(option);
+                            const option = new Option(sp.name, sp.id);
+                            sousprefectureSelect.add(option);
                         });
+                        console.log(`${data.sousprefectures.length} sous-préfectures chargées`);
+                    } else {
+                        console.error('Erreur lors du chargement des sous-préfectures:', data.error);
                     }
                 } catch (error) {
                     console.error('Erreur lors du chargement des sous-préfectures:', error);
@@ -1647,6 +1649,57 @@
             setTimeout(() => {
                 alertDiv.alert('close');
             }, 5000);
+        }
+    </script>
+    <script>
+        // Fonction pour charger les catégories
+        async function loadCategories() {
+            const categorieSelect = document.getElementById('renewCategorie');
+            if (!categorieSelect) {
+                console.error('Element renewCategorie non trouvé');
+                return;
+            }
+            
+            try {
+                console.log('Chargement des catégories...');
+                const response = await fetch('/api/categories');
+                const data = await response.json();
+                console.log('Réponse reçue:', data);
+                
+                if (data.success) {
+                    categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
+                    if (data.data && data.data.length > 0) {
+                        data.data.forEach(category => {
+                            const option = new Option(category.name, category.id);
+                            categorieSelect.add(option);
+                        });
+                        console.log(`${data.data.length} catégories chargées`);
+                    } else {
+                        console.warn('Aucune catégorie trouvée dans la réponse');
+                    }
+                } else {
+                    console.error('Erreur lors du chargement des catégories:', data.error);
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des catégories:', error);
+            }
+        }
+
+        // Charger les catégories au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded - Chargement initial des catégories');
+            loadCategories();
+        });
+
+        // Charger les catégories à l'ouverture du modal
+        const renewContractModal = document.getElementById('renewContractModal');
+        if (renewContractModal) {
+            renewContractModal.addEventListener('show.bs.modal', () => {
+                console.log('Modal ouvert - Rechargement des catégories');
+                loadCategories();
+            });
+        } else {
+            console.error('Modal renewContractModal non trouvé');
         }
     </script>
 </body>

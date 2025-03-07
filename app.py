@@ -1,46 +1,49 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, jsonify, request, session, render_template, redirect, url_for
+import sqlite3
 import os
 import uuid
 from datetime import datetime, timedelta
-import sqlite3
 from dotenv import load_dotenv
 from auth.sqlite_auth import SQLiteAuth
 from services.employee_service import EmployeeService
-from admin.routes import admin_bp
+from admin import admin_bp
 from functools import wraps
 import json
+from dateutil.relativedelta import relativedelta
 
 # Charger les variables d'environnement
 load_dotenv()
-
-app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # Clé secrète pour la session
-
-# Enregistrer le blueprint d'administration
-app.register_blueprint(admin_bp)
-
-# Initialiser les services
-auth = SQLiteAuth()
-employee_service = EmployeeService()
-
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'operator_id' not in session:
-            return jsonify({"success": False, "error": "Non autorisé"}), 401
-        return f(*args, **kwargs)
-    return decorated_function
 
 def get_db_connection():
     """Établit une connexion à la base de données SQLite"""
     db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'db', 'geogestion.db')
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row  # Permet d'accéder aux colonnes par leur nom
     return conn
 
 def init_db():
     """Initialise la base de données"""
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # Créer la table administrators si elle n'existe pas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS administrators (
+            email TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            password TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # Ajouter un administrateur par défaut s'il n'existe pas
+    cursor.execute("SELECT COUNT(*) FROM administrators")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT INTO administrators (email, name, password)
+            VALUES (?, ?, ?)
+        """, ('admin@geogestion.com', 'Admin', 'admin123'))
 
     # Ajout des colonnes deleted_at et updated_at si elles n'existent pas
     try:
@@ -75,11 +78,59 @@ def init_db():
     except:
         pass
 
+    # Créer la table type_poste si elle n'existe pas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS type_poste (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fonction TEXT NOT NULL
+        )
+    """)
+
+    # Vérifier si la table type_poste est vide
+    cursor.execute("SELECT COUNT(*) FROM type_poste")
+    if cursor.fetchone()[0] == 0:
+        # Insérer des catégories par défaut
+        default_categories = [
+            ('Superviseur',),
+            ('Agent de terrain',),
+            ('Coordinateur',),
+            ('Assistant',),
+            ('Technicien',)
+        ]
+        cursor.executemany(
+            "INSERT INTO type_poste (fonction) VALUES (?)",
+            default_categories
+        )
+        print("Catégories par défaut ajoutées à la table type_poste")
+
     conn.commit()
     conn.close()
 
+def create_app():
+    app = Flask(__name__)
+    app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # Clé secrète pour la session
+    
+    # Enregistrer le blueprint d'administration
+    app.register_blueprint(admin_bp)
+    
+    return app
+
+app = create_app()
+
+# Initialiser les services
+auth = SQLiteAuth()
+employee_service = EmployeeService()
+
 # Initialiser la base de données au démarrage
 init_db()
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'operator_id' not in session:
+            return jsonify({"success": False, "error": "Non autorisé"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
 
 @app.route('/')
 def index():
@@ -158,26 +209,26 @@ def login():
             }), 404
         
         # Vérifier le mot de passe
-        if operator[3] != password:
+        if operator['password'] != password:
             return jsonify({
                 'success': False,
                 'error': 'Mot de passe incorrect'
             }), 401
         
         # Stocker les informations dans la session
-        session['operator_id'] = operator[0]
-        session['operator_name'] = operator[1]
-        session['actor_type'] = operator[4]
+        session['operator_id'] = operator['id']
+        session['operator_name'] = operator['name']
+        session['actor_type'] = operator['acteur_type_id']
         session['project_id'] = project_id  # Ajouter le project_id à la session
         
-        print(f"Login réussi - Opérateur: {operator[1]}, Projet: {project_id}")  # Debug
+        print(f"Login réussi - Opérateur: {operator['name']}, Projet: {project_id}")  # Debug
         
         return jsonify({
             'success': True,
             'operator': {
-                'id': operator[0],
-                'name': operator[1],
-                'phone': operator[2]
+                'id': operator['id'],
+                'name': operator['name'],
+                'phone': operator['phone']
             },
             'redirect': '/dashboard'
         })
@@ -226,68 +277,63 @@ def get_employee(employee_id):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Récupérer les informations de l'employé avec son dernier contrat
+        # Récupérer les informations de l'employé avec les jointures nécessaires
         cur.execute("""
-            WITH LastContract AS (
-                SELECT 
-                    employee_id,
-                    start_date as contract_start_date,
-                    CAST(ROUND((julianday(end_date) - julianday(start_date)) / 30.44) AS INTEGER) as contract_duration_months,
-                    ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY start_date DESC) as rn
-                FROM contracts
-                WHERE deleted_at IS NULL
-            )
             SELECT 
-                e.id,
-                e.first_name,
-                e.last_name,
-                e.birth_date,
-                e.gender,
-                e.contact,
-                e.region_id,
-                e.departement_id,
-                e.sous_prefecture_id,
-                e.poste_id,
-                c.contract_start_date,
-                c.contract_duration_months,
+                e.*,
                 r.nom as region_nom,
                 d.nom as departement_nom,
                 sp.nom as sous_prefecture_nom,
-                p.titre as poste_nom,
-                e.operator_id
+                tp.fonction as poste_nom,
+                c.start_date as contract_start,
+                c.end_date as contract_end,
+                c.salary as contract_salary,
+                c.categorie as contract_category,
+                c.position as contract_position,
+                c.status as contract_status,
+                dip.nom as diplome_nom,
+                ec.nom as ecole_nom
             FROM employees e
-            LEFT JOIN LastContract c ON e.id = c.employee_id AND c.rn = 1
             LEFT JOIN regions r ON e.region_id = r.id
             LEFT JOIN departements d ON e.departement_id = d.id
             LEFT JOIN sous_prefectures sp ON e.sous_prefecture_id = sp.id
-            LEFT JOIN postes p ON e.poste_id = p.id
+            LEFT JOIN type_poste tp ON e.poste_id = tp.id
+            LEFT JOIN contracts c ON e.id = c.employee_id AND c.deleted_at IS NULL
+            LEFT JOIN diplomes dip ON e.diplome_id = dip.id
+            LEFT JOIN ecoles ec ON e.ecole_id = ec.id
             WHERE e.id = ? AND e.deleted_at IS NULL
         """, (employee_id,))
         
         employee = cur.fetchone()
         
-        if employee and str(employee[16]) == str(session.get('operator_id')):
+        if employee and str(employee['operator_id']) == str(session.get('operator_id')):
             # Convertir les dates en format ISO pour le frontend
-            birth_date = employee[3] if employee[3] else None
-            contract_start_date = employee[10] if employee[10] else None
+            birth_date = employee['birth_date'] if employee['birth_date'] else None
             
             employee_data = {
-                'id': employee[0],
-                'first_name': employee[1],
-                'last_name': employee[2],
+                'id': employee['id'],
+                'first_name': employee['first_name'],
+                'last_name': employee['last_name'],
                 'birth_date': birth_date,
-                'gender': employee[4],
-                'contact': employee[5],
-                'region_id': employee[6],
-                'departement_id': employee[7],
-                'sous_prefecture_id': employee[8],
-                'poste_id': employee[9],
-                'contract_start_date': contract_start_date,
-                'contract_duration_months': employee[11],
-                'region_nom': employee[12],
-                'departement_nom': employee[13],
-                'sous_prefecture_nom': employee[14],
-                'poste_nom': employee[15]
+                'gender': employee['gender'],
+                'contact': employee['contact'],
+                'region_id': employee['region_id'],
+                'departement_id': employee['departement_id'],
+                'sous_prefecture_id': employee['sous_prefecture_id'],
+                'poste_id': employee['poste_id'],
+                'contract_start': employee['contract_start'],
+                'contract_end': employee['contract_end'],
+                'contract_salary': employee['contract_salary'],
+                'contract_category': employee['contract_category'],
+                'contract_position': employee['contract_position'],
+                'contract_status': employee['contract_status'],
+                'region_nom': employee['region_nom'],
+                'departement_nom': employee['departement_nom'],
+                'sous_prefecture_nom': employee['sous_prefecture_nom'],
+                'poste_nom': employee['poste_nom'],
+                'diplome_nom': employee['diplome_nom'],
+                'ecole_nom': employee['ecole_nom'],
+                'availability': employee['availability']
             }
             
             return jsonify({
@@ -304,7 +350,7 @@ def get_employee(employee_id):
         print(f"Erreur lors de la récupération de l'employé: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f"Erreur lors de la récupération de l'employé: {str(e)}"
+            'error': str(e)
         }), 500
     finally:
         if 'cur' in locals():
@@ -327,7 +373,7 @@ def get_employee_contracts(employee_id):
         """, (employee_id,))
         employee = cur.fetchone()
         
-        if not employee or str(employee[0]) != str(session.get('operator_id')):
+        if not employee or str(employee['operator_id']) != str(session.get('operator_id')):
             return jsonify({
                 'success': False,
                 'message': 'Employé non trouvé ou accès non autorisé'
@@ -353,11 +399,11 @@ def get_employee_contracts(employee_id):
         contracts = []
         for row in cur.fetchall():
             contracts.append({
-                'start_date': row[0],
-                'end_date': row[1],
-                'duration_months': row[2],
-                'position': row[3],
-                'status': row[4]
+                'start_date': row['start_date'],
+                'end_date': row['end_date'],
+                'duration_months': row['duration_months'],
+                'position': row['position_name'],
+                'status': row['status']
             })
         
         return jsonify({
@@ -383,55 +429,122 @@ def update_employee(employee_id):
     conn = None
     try:
         data = request.get_json()
+        print(f"Tentative de modification de l'employé {employee_id}")
+        print("Données reçues:", json.dumps(data, indent=2))
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         
         # Vérifier si l'employé existe
-        cursor.execute("SELECT id FROM employees WHERE id = ?", (employee_id,))
-        if not cursor.fetchone():
-            return jsonify({'error': 'Employé non trouvé'}), 404
-        
-        # Mise à jour de l'employé
-        cursor.execute("""
+        cursor.execute("SELECT id FROM employees WHERE id = ? AND deleted_at IS NULL", (employee_id,))
+        employee = cursor.fetchone()
+        if not employee:
+            print(f"Employé {employee_id} non trouvé")
+            return jsonify({'success': False, 'error': 'Employé non trouvé'}), 404
+
+        print(f"Employé {employee_id} trouvé, mise à jour en cours...")
+
+        # Nettoyer les données avant la mise à jour
+        update_fields = {
+            'first_name': data.get('first_name'),
+            'last_name': data.get('last_name'),
+            'gender': data.get('gender'),
+            'birth_date': data.get('birth_date'),
+            'region_id': data.get('region_id'),
+            'departement_id': data.get('departement_id'),
+            'sous_prefecture_id': data.get('sous_prefecture_id'),
+            'additional_info': data.get('additional_info'),
+            'contact': data.get('contact'),
+            'contract_duration': data.get('contract_duration'),
+            'position': data.get('position'),
+            'ecole_id': data.get('ecole_id') if data.get('ecole_id') and data.get('ecole_id').strip() else None,
+            'diplome_id': data.get('diplome_id') if data.get('diplome_id') and data.get('diplome_id').strip() else None,
+            'poste_id': data.get('poste_id') if data.get('poste_id') and data.get('poste_id').strip() else None
+        }
+
+        # Construire la requête de mise à jour dynamiquement
+        update_fields_filtered = {k: v for k, v in update_fields.items() if v is not None}
+        update_query = """
             UPDATE employees 
-            SET first_name = ?,
-                last_name = ?,
-                poste_id = ?,
-                gender = ?,
-                birth_date = ?,
-                region_id = ?,
-                departement_id = ?,
-                sous_prefecture_id = ?,
-                additional_info = ?,
-                contract_duration = ?,
-                position = ?,
-                contact = ?,
-                updated_at = CURRENT_TIMESTAMP
+            SET {} 
             WHERE id = ?
+        """.format(
+            ', '.join(f"{key} = ?" for key in update_fields_filtered.keys())
+        )
+        
+        # Ajouter updated_at au champ et à la valeur
+        update_fields_filtered['updated_at'] = 'CURRENT_TIMESTAMP'
+        update_query = update_query.replace('updated_at = ?', 'updated_at = CURRENT_TIMESTAMP')
+        
+        # Préparer les paramètres
+        update_params = list(update_fields_filtered.values())
+        if 'CURRENT_TIMESTAMP' in update_params:
+            update_params.remove('CURRENT_TIMESTAMP')
+        update_params.append(employee_id)
+        
+        print("Requête de mise à jour:", update_query)
+        print("Paramètres:", update_params)
+        
+        cursor.execute(update_query, update_params)
+        
+        # Marquer l'ancien contrat comme terminé
+        cursor.execute("""
+            UPDATE contracts 
+            SET deleted_at = CURRENT_TIMESTAMP,
+                status = 'Expiré'
+            WHERE employee_id = ? 
+            AND deleted_at IS NULL
+        """, (employee_id,))
+        
+        # Créer un nouveau contrat
+        start_date = data.get('contract_start_date') or datetime.now().strftime('%Y-%m-%d')
+        end_date = datetime.strptime(start_date, '%Y-%m-%d') + relativedelta(months=int(data.get('contract_duration', 3)))
+        current_date = datetime.now()
+        
+        # Déterminer le statut du contrat
+        contract_status = 'En cours' if end_date.date() > current_date.date() else 'Expiré'
+        
+        new_contract_id = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT INTO contracts (
+                id, employee_id, position, start_date, end_date, status,
+                categorie, diplome_id, ecoles_id, type,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
         """, (
-            data.get('first_name'),
-            data.get('last_name'),
-            data.get('poste_id'),
-            data.get('gender'),
-            data.get('birth_date'),
-            data.get('region_id'),
-            data.get('departement_id'),
-            data.get('sous_prefecture_id'),
-            data.get('additional_info'),
-            data.get('contract_duration_months'),  # Le frontend envoie contract_duration_months
+            new_contract_id,
+            employee_id,
             data.get('position'),
-            data.get('contact'),
-            employee_id
+            start_date,
+            end_date.strftime('%Y-%m-%d'),
+            contract_status,
+            data.get('categorie') if data.get('categorie') and data.get('categorie').strip() else None,
+            data.get('diplome_id') if data.get('diplome_id') and data.get('diplome_id').strip() else None,
+            data.get('ecole_id') if data.get('ecole_id') and data.get('ecole_id').strip() else None,
+            data.get('contract_type', 'CDD')
         ))
         
+        print(f"Nouveau contrat {new_contract_id} créé pour l'employé avec le statut {contract_status}")
+
         conn.commit()
-        return jsonify({'success': True, 'message': 'Employé mis à jour avec succès'})
+        print(f"Modification de l'employé {employee_id} réussie")
         
+        return jsonify({
+            'success': True, 
+            'message': 'Employé et contrat mis à jour avec succès'
+        })
+            
     except Exception as e:
         if conn:
             conn.rollback()
-        print(f"Error updating employee: {str(e)}")
-        return jsonify({'error': 'Erreur lors de la mise à jour de l\'employé'}), 500
+        print(f"Erreur lors de la modification de l'employé {employee_id}: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'error': f"Erreur lors de la mise à jour: {str(e)}"
+        }), 500
     finally:
         if conn:
             conn.close()
@@ -445,9 +558,9 @@ def delete_employee(employee_id):
         cursor = conn.cursor()
         
         # Vérifier si l'employé existe
-        cursor.execute("SELECT id FROM employees WHERE id = ?", (employee_id,))
+        cursor.execute("SELECT id FROM employees WHERE id = ? AND deleted_at IS NULL", (employee_id,))
         if not cursor.fetchone():
-            return jsonify({'error': 'Employé non trouvé'}), 404
+            return jsonify({'success': False, 'error': 'Employé non trouvé'}), 404
         
         # Supprimer d'abord les contrats associés
         cursor.execute("DELETE FROM contracts WHERE employee_id = ?", (employee_id,))
@@ -456,55 +569,134 @@ def delete_employee(employee_id):
         cursor.execute("DELETE FROM employees WHERE id = ?", (employee_id,))
         
         conn.commit()
-        return jsonify({'success': True, 'message': 'Employé supprimé avec succès'})
+        return jsonify({
+            'success': True, 
+            'message': 'Employé supprimé avec succès'
+        })
         
     except Exception as e:
         if conn:
             conn.rollback()
         print(f"Error deleting employee: {str(e)}")
-        return jsonify({'error': 'Erreur lors de la suppression de l\'employé'}), 500
+        return jsonify({
+            'success': False, 
+            'error': 'Erreur lors de la suppression de l\'employé'
+        }), 500
     finally:
         if conn:
             conn.close()
 
 @app.route('/api/employees', methods=['POST'])
 @login_required
-def add_employee():
+def create_employee():
+    conn = None
     try:
         data = request.get_json()
+        print("Données avant création:", json.dumps(data, indent=2))
         
-        # Vérifier les champs requis
-        required_fields = ['first_name', 'last_name', 'gender']
-        missing_fields = [field for field in required_fields if not data.get(field)]
+        # Valider les données requises
+        required_fields = ['first_name', 'last_name', 'operator_id']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'error': f'Le champ {field} est requis'}), 400
         
-        if missing_fields:
-            return jsonify({
-                'error': f"Champs requis manquants: {', '.join(missing_fields)}",
-                'success': False
-            }), 400
+        conn = get_db_connection()
+        cursor = conn.cursor()
         
-        # Ajouter l'operator_id depuis la session
-        data['operator_id'] = session.get('operator_id')
+        # Générer un nouvel ID
+        employee_id = str(uuid.uuid4())
         
-        print("Données avant création:", json.dumps(data, indent=2))  # Debug log
+        # Insérer l'employé
+        insert_query = """
+            INSERT INTO employees (
+                id, operator_id, first_name, last_name, gender, birth_date,
+                contact, contract_duration, region_id, departement_id,
+                sous_prefecture_id, additional_info, position, availability,
+                ecole_id, diplome_id, poste_id, created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+        """
         
-        # Créer l'employé
-        result = employee_service.create_employee(data)  # Changé de add_employee à create_employee
+        # Préparer les paramètres
+        params = [
+            employee_id,
+            data.get('operator_id'),
+            data.get('first_name'),
+            data.get('last_name'),
+            data.get('gender'),
+            data.get('birth_date'),
+            data.get('contact'),
+            data.get('contract_duration'),
+            data.get('region_id'),
+            data.get('departement_id'),
+            data.get('sous_prefecture_id'),
+            data.get('additional_info'),
+            data.get('position'),
+            'Au siège',  # Valeur par défaut pour availability
+            data.get('ecole_id') if data.get('ecole_id') and data.get('ecole_id').strip() else None,
+            data.get('diplome_id') if data.get('diplome_id') and data.get('diplome_id').strip() else None,
+            data.get('poste_id') if data.get('poste_id') and data.get('poste_id').strip() else None
+        ]
         
-        if result and result.get('success'):
-            return jsonify(result), 201
-        else:
-            return jsonify({
-                'error': "Erreur lors de la création de l'employé",
-                'success': False
-            }), 400
+        print("Paramètres de la requête:", tuple(params))
+        cursor.execute(insert_query, params)
+        
+        # Créer le contrat initial
+        start_date = data.get('contract_start_date') or datetime.now().strftime('%Y-%m-%d')
+        contract_duration = data.get('contract_duration', 3)
+        end_date = datetime.strptime(start_date, '%Y-%m-%d') + relativedelta(months=int(contract_duration))
+        current_date = datetime.now()
+        
+        # Déterminer le statut du contrat
+        contract_status = 'En cours' if end_date.date() > current_date.date() else 'Expiré'
+        
+        contract_id = str(uuid.uuid4())
+        cursor.execute("""
+            INSERT INTO contracts (
+                id, employee_id, position, start_date, end_date, status,
+                categorie, diplome_id, ecoles_id, type,
+                created_at, updated_at
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+        """, (
+            contract_id,
+            employee_id,
+            data.get('position'),
+            start_date,
+            end_date.strftime('%Y-%m-%d'),
+            contract_status,
+            data.get('categorie'),
+            data.get('diplome_id'),
+            data.get('ecole_id'),
+            data.get('contract_type', 'CDD')
+        ))
+        
+        conn.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Employé créé avec succès',
+            'employee_id': employee_id
+        }), 201
             
     except Exception as e:
-        print(f"Erreur dans add_employee: {str(e)}")
+        if conn:
+            conn.rollback()
+        print(f"Erreur lors de la création de l'employé: {str(e)}")
         return jsonify({
-            'error': str(e),
-            'success': False
-        }), 400
+            'success': False,
+            'error': f"Erreur lors de la création: {str(e)}"
+        }), 500
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/employees/delete-multiple', methods=['POST'])
 @login_required
@@ -604,11 +796,11 @@ def renew_contracts():
             """, (
                 new_contract_id,
                 employee_id,
-                last_contract[0],
+                last_contract['type'],
                 start_date,
                 end_date,
-                last_contract[1],
-                last_contract[2],
+                last_contract['salary'],
+                last_contract['department'],
                 position,
                 'En cours',
                 '',  # additional_terms
@@ -641,42 +833,100 @@ def renew_contracts():
 @login_required
 def renew_employee_contracts():
     """Renouvelle les contrats des employés sélectionnés"""
+    conn = None
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Données manquantes'}), 400
+
         employee_ids = data.get('employee_ids', [])
         start_date = data.get('start_date')
         duration = data.get('duration')
-        position = data.get('position')
+        position = data.get('poste_id')  # On garde poste_id dans la requête mais on utilise position dans la BD
+        categorie = data.get('categorie_id')  # Pareil pour categorie
+        diplome = data.get('diplome_id')
+        ecole = data.get('ecole_id')
+        location = data.get('location')
+        region_id = data.get('region_id')
+        departement_id = data.get('departement_id')
+        sous_prefecture_id = data.get('sous_prefecture_id')
+
+        # Log des données reçues
+        print("Données reçues pour le renouvellement:", data)
+
+        # Log des valeurs extraites
+        print("Valeurs extraites:")
+        print(f"employee_ids: {employee_ids}")
+        print(f"start_date: {start_date}")
+        print(f"duration: {duration}")
+        print(f"position: {position}")
+        print(f"categorie: {categorie}")
+        print(f"diplome: {diplome}")
+        print(f"ecole: {ecole}")
+        print(f"location: {location}")
+        
+        # Vérification des champs requis
+        required_fields = {
+            'employee_ids': employee_ids,
+            'start_date': start_date,
+            'duration': duration,
+            'poste_id': position,
+            'diplome_id': diplome,
+            'ecole_id': ecole,
+            'location': location
+        }
+        
+        missing_fields = [field for field, value in required_fields.items() 
+                         if not value or (isinstance(value, list) and not value)]
+        
+        if missing_fields:
+            return jsonify({
+                'success': False, 
+                'error': f'Les champs suivants sont requis : {", ".join(missing_fields)}'
+            }), 400
+            
+        # Vérification des champs de localisation si nécessaire
+        if location == 'interieur':
+            location_fields = {
+                'region_id': region_id,
+                'departement_id': departement_id,
+                'sous_prefecture_id': sous_prefecture_id
+            }
+            missing_location_fields = [field for field, value in location_fields.items() if not value]
+            if missing_location_fields:
+                return jsonify({
+                    'success': False,
+                    'error': f'Pour une localisation à l\'intérieur, les champs suivants sont requis : {", ".join(missing_location_fields)}'
+                }), 400
         
         if not employee_ids:
             return jsonify({'success': False, 'error': 'Aucun employé sélectionné'}), 400
             
-        if not all([start_date, duration, position]):
-            return jsonify({'success': False, 'error': 'Tous les champs sont requis'}), 400
-
-        # Calculer la date de fin
         try:
             start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
             end_date = (start_date_obj + timedelta(days=int(duration) * 30)).strftime('%Y-%m-%d')
         except ValueError as e:
+            print(f"Erreur de format de date: {str(e)}")
             return jsonify({'success': False, 'error': 'Format de date invalide'}), 400
             
         conn = get_db_connection()
         cursor = conn.cursor()
         
         for employee_id in employee_ids:
-            # Vérifier que l'employé appartient à l'opérateur connecté
+            print(f"Traitement de l'employé {employee_id}")
+            
             cursor.execute("""
                 SELECT id FROM employees 
                 WHERE id = ? AND operator_id = ?
             """, (employee_id, session.get('operator_id')))
             
-            if not cursor.fetchone():
+            employee = cursor.fetchone()
+            if not employee:
+                print(f"Employé {employee_id} non trouvé ou non autorisé")
                 continue
                 
-            # Récupérer les informations du dernier contrat
             cursor.execute("""
-                SELECT type, salary, department
+                SELECT type, salary
                 FROM contracts 
                 WHERE employee_id = ? 
                 ORDER BY created_at DESC 
@@ -685,57 +935,89 @@ def renew_employee_contracts():
             
             last_contract = cursor.fetchone()
             if not last_contract:
+                print(f"Aucun contrat trouvé pour l'employé {employee_id}")
                 continue
 
-            # Mettre à jour le contrat existant
-            cursor.execute("""
-                UPDATE contracts 
-                SET status = 'Expiré',
-                    updated_at = ?
-                WHERE employee_id = ? AND status = 'En cours'
-            """, (datetime.now().isoformat(), employee_id))
-            
-            # Créer un nouveau contrat
-            new_contract_id = str(uuid.uuid4())
-            now = datetime.now().isoformat()
-            
-            cursor.execute("""
-                INSERT INTO contracts (
-                    id, employee_id, type, start_date, end_date,
-                    salary, department, position, status,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                new_contract_id,
-                employee_id,
-                last_contract[0],
-                start_date,
-                end_date,
-                last_contract[1],
-                last_contract[2],
-                position,
-                'En cours',
-                now,
-                now
-            ))
-            
-            # Mettre à jour l'employé
-            cursor.execute("""
-                UPDATE employees 
-                SET position = ?,
-                    contract_duration = ?,
-                    updated_at = ?
-                WHERE id = ?
-            """, (position, duration, now, employee_id))
-            
+            try:
+                cursor.execute("""
+                    UPDATE contracts 
+                    SET status = 'Expiré',
+                        updated_at = ?
+                    WHERE employee_id = ? AND status = 'En cours'
+                """, (datetime.now().isoformat(), employee_id))
+                
+                new_contract_id = str(uuid.uuid4())
+                now = datetime.now().isoformat()
+                
+                # Log des données du contrat
+                print(f"Création du nouveau contrat pour l'employé {employee_id}")
+                print(f"Type: {last_contract['type']}")
+                print(f"Dates: {start_date} - {end_date}")
+                
+                cursor.execute("""
+                    INSERT INTO contracts (
+                        id, employee_id, type, start_date, end_date,
+                        salary, position, categorie, diplome_id, ecoles_id,
+                        status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    new_contract_id,
+                    employee_id,
+                    last_contract['type'],
+                    start_date,
+                    end_date,
+                    last_contract['salary'],
+                    position,
+                    categorie,
+                    diplome,
+                    ecole,
+                    'En cours',
+                    now,
+                    now
+                ))
+                
+                # Conversion de location en availability
+                availability = 'Au siège' if location == 'siege' else 'En mission'
+                
+                cursor.execute("""
+                    UPDATE employees 
+                    SET poste_id = ?,
+                        diplome_id = ?,
+                        ecole_id = ?,
+                        availability = ?,
+                        region_id = ?,
+                        departement_id = ?,
+                        sous_prefecture_id = ?,
+                        contract_duration = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                """, (
+                    position,
+                    diplome,
+                    ecole,
+                    availability,
+                    region_id if location == 'interieur' else None,
+                    departement_id if location == 'interieur' else None,
+                    sous_prefecture_id if location == 'interieur' else None,
+                    duration,
+                    now,
+                    employee_id
+                ))
+                
+                print(f"Contrat renouvelé avec succès pour l'employé {employee_id}")
+                
+            except Exception as e:
+                print(f"Erreur lors du renouvellement du contrat pour l'employé {employee_id}: {str(e)}")
+                raise
+
         conn.commit()
-        return jsonify({'success': True, 'message': 'Contrats renouvelés avec succès'})
+        return jsonify({'success': True, 'message': 'Contrats renouvelés avec succès'}), 200
         
     except Exception as e:
-        print(f"Erreur lors du renouvellement des contrats: {str(e)}")
         if conn:
             conn.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print(f"Erreur lors du renouvellement des contrats: {str(e)}")
+        return jsonify({'error': f'Erreur lors du renouvellement des contrats: {str(e)}'}), 500
     finally:
         if conn:
             conn.close()
@@ -772,12 +1054,12 @@ def get_stats():
         stats = cursor.fetchone()
         if stats:
             return jsonify({
-                'total': stats[0] or 0,
-                'male': stats[1] or 0,
-                'female': stats[2] or 0,
-                'available': stats[3] or 0,
-                'unavailable': stats[4] or 0,
-                'young_employees': stats[5] or 0
+                'total': stats['total'] or 0,
+                'male': stats['male'] or 0,
+                'female': stats['female'] or 0,
+                'available': stats['available'] or 0,
+                'unavailable': stats['unavailable'] or 0,
+                'young_employees': stats['young_employees'] or 0
             })
         else:
             return jsonify({
@@ -854,11 +1136,11 @@ def get_projects():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, nom, description 
+            SELECT id, nom as name, description 
             FROM projects 
             ORDER BY nom
         """)
-        projects = [{'id': row[0], 'name': row[1], 'description': row[2]} 
+        projects = [{'id': row['id'], 'name': row['name'], 'description': row['description']} 
                    for row in cursor.fetchall()]
         conn.close()
         return jsonify({'success': True, 'projects': projects})
@@ -875,11 +1157,11 @@ def get_actor_types():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, nom, description 
+            SELECT id, nom as name, description 
             FROM acteurs_type 
             ORDER BY nom
         """)
-        actor_types = [{'id': row[0], 'name': row[1], 'description': row[2]} 
+        actor_types = [{'id': row['id'], 'name': row['name'], 'description': row['description']} 
                       for row in cursor.fetchall()]
         conn.close()
         return jsonify({'success': True, 'actor_types': actor_types})
@@ -901,7 +1183,7 @@ def get_actors_by_type(actor_type_id):
             WHERE acteur_type_id = ?
             ORDER BY name
         """, (actor_type_id,))
-        actors = [{'id': row[0], 'name': row[1], 'contact': row[2]} 
+        actors = [{'id': row['id'], 'name': row['name'], 'contact': row['contact1']} 
                  for row in cursor.fetchall()]
         conn.close()
         return jsonify({'success': True, 'actors': actors})
@@ -929,7 +1211,7 @@ def get_actors_by_project_and_type(project_id, actor_type_id):
         if not actor_type:
             return jsonify({'success': False, 'error': 'Type d\'acteur non trouvé'}), 404
 
-        actor_type_name = actor_type[0]
+        actor_type_name = actor_type['nom']
 
         # Vérifier si le projet existe
         cursor.execute("""
@@ -953,8 +1235,8 @@ def get_actors_by_project_and_type(project_id, actor_type_id):
             """, (project_id,))
             
             actors = [{
-                'id': row[0],
-                'name': f"{row[1]} ({row[2]})" if row[2] else row[1],
+                'id': row['id'],
+                'name': f"{row['name']} ({row['sigle']})" if row['sigle'] else row['name'],
                 'in_project': True
             } for row in cursor.fetchall()]
 
@@ -970,10 +1252,10 @@ def get_actors_by_project_and_type(project_id, actor_type_id):
             """, (project_id, actor_type_id,))
             
             actors = [{
-                'id': row[0],
-                'name': row[1],
-                'contact': row[2],
-                'email': row[3],
+                'id': row['id'],
+                'name': row['name'],
+                'contact': row['contact1'],
+                'email': row['email1'],
                 'in_project': True
             } for row in cursor.fetchall()]
 
@@ -982,7 +1264,7 @@ def get_actors_by_project_and_type(project_id, actor_type_id):
             'success': True, 
             'actors': actors,
             'actor_type': actor_type_name,
-            'project_name': project[1]
+            'project_name': project['nom']
         })
 
     except Exception as e:
@@ -1007,7 +1289,7 @@ def get_regions_by_project(project_id):
             ORDER BY r.name
         """, (project_id,))
         
-        regions = [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+        regions = [{'id': row['id'], 'name': row['name']} for row in cursor.fetchall()]
         conn.close()
         
         return jsonify({'success': True, 'regions': regions})
@@ -1038,8 +1320,8 @@ def get_departements(region_id):
         departements = []
         for row in cursor.fetchall():
             departements.append({
-                'id': row[0],
-                'name': row[1]
+                'id': row['id'],
+                'name': row['name']
             })
         
         print(f"Départements trouvés pour la région {region_id}:", departements)  # Debug
@@ -1074,8 +1356,8 @@ def get_sousprefectures(departement_id):
         sousprefectures = []
         for row in cursor.fetchall():
             sousprefectures.append({
-                'id': row[0],
-                'name': row[1]
+                'id': row['id'],
+                'name': row['name']
             })
         
         print(f"Sous-préfectures trouvées pour le département {departement_id}:", sousprefectures)  # Debug
@@ -1108,7 +1390,7 @@ def get_regions():
             ORDER BY r.nom
         """, (project_id,))
         
-        regions = [dict(id=row[0], name=row[1]) for row in cursor.fetchall()]
+        regions = [dict(id=row['id'], name=row['name']) for row in cursor.fetchall()]
         print(f"Régions trouvées pour le projet {project_id}:", regions)  # Debug
         
         return jsonify({"success": True, "data": regions})
@@ -1151,7 +1433,7 @@ def get_diplomes():
             FROM diplomes 
             ORDER BY nom
         """)
-        diplomes = [dict(id=row[0], name=row[1]) for row in cursor.fetchall()]
+        diplomes = [dict(id=row['id'], name=row['name']) for row in cursor.fetchall()]
         return jsonify({"success": True, "data": diplomes})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
@@ -1166,25 +1448,56 @@ def get_ecoles():
             FROM ecoles 
             ORDER BY nom
         """)
-        ecoles = [dict(id=row[0], name=row[1]) for row in cursor.fetchall()]
+        ecoles = [dict(id=row['id'], name=row['name']) for row in cursor.fetchall()]
         return jsonify({"success": True, "data": ecoles})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/api/categories')
 def get_categories():
+    conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Vérifier si la table existe
         cursor.execute("""
-            SELECT id, fonction as name 
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='type_poste'
+        """)
+        if not cursor.fetchone():
+            return jsonify({"success": False, "error": "Table type_poste not found"})
+            
+        # Compter le nombre d'entrées
+        cursor.execute("SELECT COUNT(*) FROM type_poste")
+        count = cursor.fetchone()[0]
+        
+        # Récupérer les données
+        cursor.execute("""
+            SELECT id, fonction as name
             FROM type_poste 
             ORDER BY fonction
         """)
-        categories = [dict(id=row[0], name=row[1]) for row in cursor.fetchall()]
-        return jsonify({"success": True, "data": categories})
+        categories = []
+        for row in cursor.fetchall():
+            categories.append({
+                "id": row[0],
+                "name": row[1]
+            })
+        
+        conn.close()
+        return jsonify({
+            "success": True, 
+            "count": count,
+            "data": categories
+        })
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        if conn:
+            conn.close()
+        return jsonify({
+            "success": False, 
+            "error": str(e)
+        })
 
 @app.route('/api/employees/operator')
 @login_required
@@ -1237,8 +1550,8 @@ def get_current_operator():
             return jsonify({
                 'success': True,
                 'operator': {
-                    'id': operator[0],
-                    'name': operator[1]
+                    'id': operator['id'],
+                    'name': operator['name']
                 }
             })
         else:
@@ -1248,11 +1561,14 @@ def get_current_operator():
         print('Erreur lors de la récupération de l\'opérateur:', str(e))
         return jsonify({'success': False, 'message': 'Erreur serveur'}), 500
 
-@app.route('/api/admin/login', methods=['POST'])
+@app.route('/api/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    if request.method == 'GET':
+        return render_template('admin/login.html')
+    
     try:
         data = request.get_json()
-        email = data.get('email')  # Changé de contact à email
+        email = data.get('email')
         password = data.get('password')
         
         if not all([email, password]):
@@ -1264,26 +1580,28 @@ def admin_login():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Vérifier les identifiants de l'administrateur
         cursor.execute("""
-            SELECT phone, name, email
-            FROM administrators
-            WHERE email = ? AND password = ?
-        """, (email, password))
+            SELECT email, name, password
+            FROM administrators 
+            WHERE email = ?
+        """, (email,))
         
         admin = cursor.fetchone()
         
         if not admin:
             return jsonify({
                 'success': False,
-                'error': 'Identifiants incorrects'
+                'error': 'Administrateur non trouvé'
+            }), 404
+        
+        if admin['password'] != password:
+            return jsonify({
+                'success': False,
+                'error': 'Mot de passe incorrect'
             }), 401
         
-        # Stocker les informations dans la session
-        session['admin_id'] = admin[0]  # phone comme ID
-        session['admin_name'] = admin[1]
-        session['admin_email'] = admin[2]
-        session['is_admin'] = True
+        session['admin_id'] = admin['email']
+        session['admin_name'] = admin['name']
         
         return jsonify({
             'success': True,
@@ -1291,7 +1609,7 @@ def admin_login():
         })
         
     except Exception as e:
-        print(f"Erreur lors du login admin: {str(e)}")
+        print(f"Erreur de connexion admin: {str(e)}")  # Ajout de log pour le debug
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1300,6 +1618,121 @@ def admin_login():
         if 'cursor' in locals():
             cursor.close()
         if 'conn' in locals():
+            conn.close()
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    return render_template('admin_dashboard.html')
+
+@app.route('/api/contracts/<contract_id>/renew', methods=['POST'])
+@login_required
+def renew_contract(contract_id):
+    conn = None
+    try:
+        data = request.get_json()
+        print(f"Tentative de reconduction du contrat {contract_id}")
+        print("Données reçues:", json.dumps(data, indent=2))
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Récupérer l'ancien contrat
+        cursor.execute("""
+            SELECT c.*, e.first_name, e.last_name, e.position, e.ecole_id, e.diplome_id, e.poste_id
+            FROM contracts c
+            JOIN employees e ON c.employee_id = e.id
+            WHERE c.id = ? AND c.deleted_at IS NULL
+        """, (contract_id,))
+        old_contract = cursor.fetchone()
+        
+        if not old_contract:
+            return jsonify({'success': False, 'error': 'Contrat non trouvé'}), 404
+            
+        # Marquer l'ancien contrat comme expiré
+        cursor.execute("""
+            UPDATE contracts 
+            SET deleted_at = CURRENT_TIMESTAMP,
+                status = 'Expiré'
+            WHERE id = ?
+        """, (contract_id,))
+        
+        # Créer un nouveau contrat
+        new_contract_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+        
+        cursor.execute("""
+            INSERT INTO contracts (
+                id, employee_id, type, start_date, end_date,
+                salary, department, position, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            new_contract_id,
+            old_contract['employee_id'],
+            old_contract['type'],
+            data.get('start_date'),
+            data.get('end_date'),
+            old_contract['salary'],
+            old_contract['department'],
+            old_contract['position'],
+            'En cours',
+            now,
+            now
+        ))
+        
+        conn.commit()
+        print(f"Contrat {contract_id} reconduit avec succès. Nouveau contrat: {new_contract_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Contrat reconduit avec succès',
+            'new_contract_id': new_contract_id
+        })
+            
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        print(f"Erreur lors de la reconduction du contrat {contract_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f"Erreur lors de la reconduction: {str(e)}"
+        }), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/contracts/<contract_id>', methods=['GET'])
+@login_required
+def get_contract(contract_id):
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT c.*, e.first_name, e.last_name, e.position, e.ecole_id, e.diplome_id, e.poste_id
+            FROM contracts c
+            JOIN employees e ON c.employee_id = e.id
+            WHERE c.id = ? AND c.deleted_at IS NULL
+        """, (contract_id,))
+        contract = cursor.fetchone()
+        
+        if not contract:
+            return jsonify({'success': False, 'error': 'Contrat non trouvé'}), 404
+            
+        return jsonify({
+            'success': True,
+            'contract': dict(contract)
+        })
+            
+    except Exception as e:
+        print(f"Erreur lors de la récupération du contrat {contract_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f"Erreur lors de la récupération: {str(e)}"
+        }), 500
+    finally:
+        if conn:
             conn.close()
 
 if __name__ == '__main__':
