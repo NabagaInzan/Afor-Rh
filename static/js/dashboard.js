@@ -1058,7 +1058,7 @@ $('#renewContractModal').on('show.bs.modal', function() {
         select.empty().append('<option value="">Sélectionner un poste</option>');
         if (data.success && data.data) {
             data.data.forEach(poste => {
-                select.append(`<option value="${poste.id}">${poste.name}</option>`);
+                select.append(`<option value="${poste.id}">${poste.titre}</option>`);
             });
         }
     }).fail(function(err) {
