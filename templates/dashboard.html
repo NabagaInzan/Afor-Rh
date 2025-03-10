@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emploi PRESFOR - Dashboard</title>
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/select/1.7.0/css/select.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/colreorder/1.7.0/css/colReorder.bootstrap5.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/fixedheader/3.4.0/css/fixedHeader.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --afor-green: #059669;
+            --afor-green-hover: #047857;
+            --afor-light-green: #34D399;
+            --border-color: rgba(229, 231, 235, 0.4);
+            --error-color: #EF4444;
+            --success-color: #10B981;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --text-color: #1F2937;
+            --text-muted: #6B7280;
+            --input-bg: rgba(255, 255, 255, 0.9);
+            --bg-overlay: linear-gradient(
+                135deg, 
+                rgba(255, 255, 255, 0.8) 0%,
+                rgba(255, 255, 255, 0.6) 50%,
+                rgba(255, 255, 255, 0.8) 100%
+            );
+        }
+
+        :root[data-theme="dark"] {
+            --afor-green: #10B981;
+            --afor-green-hover: #059669;
+            --afor-light-green: #34D399;
+            --border-color: rgba(156, 163, 175, 0.3);
+            --error-color: #EF4444;
+            --success-color: #10B981;
+            --card-bg: rgba(17, 24, 39, 0.95);
+            --text-color: #F9FAFB;
+            --text-muted: #D1D5DB;
+            --input-bg: rgba(31, 41, 55, 0.9);
+            --table-stripe: rgba(31, 41, 55, 0.7);
+            --bg-overlay: linear-gradient(
+                135deg, 
+                rgba(17, 24, 39, 0.9) 0%,
+                rgba(31, 41, 55, 0.8) 50%,
+                rgba(17, 24, 39, 0.9) 100%
+            );
+        }
+
+        body {
+            background: url("{{ url_for('static', filename='images/operateur.jpeg') }}") no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text-color);
+            min-height: 100vh;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .animated-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-overlay);
+            z-index: -1;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-overlay);
+            z-index: -1;
+        }
+
+        .loader {
+            width: 100%;
+            height: 4px;
+            background-color: var(--afor-light-green);
+            position: fixed;
+            top: 0;
+            left: 0;
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+            z-index: 1060;
+        }
+
+        .loader.loading {
+            animation: loading 2s infinite ease-in-out;
+        }
+
+        @keyframes loading {
+            0% { transform: scaleX(0); }
+            50% { transform: scaleX(0.7); }
+            100% { transform: scaleX(0); }
+        }
+
+        .navbar {
+            background-color: var(--card-bg) !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-brand {
+            color: var(--text-color) !important;
+            font-weight: 600;
+        }
+
+        .navbar-brand img {
+            height: 40px;
+            margin-right: 10px;
+            animation: logoFloat 3s ease-in-out infinite;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-brand img:hover {
+            transform: scale(1.1);
+        }
+
+        @keyframes logoFloat {
+            0% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+            100% {
+                transform: translateY(0px);
+            }
+        }
+
+        .stats-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .stats-icon {
+            font-size: 2em;
+            color: var(--afor-green);
+            margin-bottom: 10px;
+        }
+
+        .stats-card h3 {
+            font-size: 2em;
+            color: var(--text-color);
+            margin: 10px 0;
+        }
+
+        .stats-card p {
+            color: var(--text-muted);
+            margin: 0;
+            font-size: 1.1em;
+        }
+
+        .stats-loader {
+            font-size: 1.5em;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+
+        .table-container {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .table-container h2 {
+            color: var(--text-color);
+            font-weight: 600;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .dataTables_wrapper {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border-color);
+            overflow: auto;
+        }
+
+        .table {
+            width: 100% !important;
+            margin-bottom: 0 !important;
+            color: var(--text-color) !important;
+            border-collapse: collapse !important;
+        }
+
+        .table thead th {
+            background-color: var(--afor-green);
+            color: white;
+            border: none;
+            padding: 12px;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .table tbody td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        .table tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table tbody tr:hover {
+            background-color: rgba(5, 150, 105, 0.1);
+        }
+
+        .dataTables_paginate {
+            margin-top: 15px !important;
+            padding-top: 15px !important;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .paginate_button {
+            padding: 5px 10px !important;
+            margin: 0 2px !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+        }
+
+        .paginate_button.current {
+            background: var(--afor-green) !important;
+            color: white !important;
+            border: none !important;
+        }
+
+        .dataTables_filter input,
+        .dataTables_length select {
+            background: var(--input-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 4px !important;
+            padding: 6px 10px !important;
+            color: var(--text-color) !important;
+        }
+
+        @media screen and (max-width: 768px) {
+            .dataTables_wrapper {
+                padding: 10px;
+            }
+
+            .table thead th,
+            .table tbody td {
+                padding: 8px;
+            }
+        }
+
+        .btn-primary {
+            background-color: var(--afor-green);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--afor-green-hover);
+        }
+
+        .btn-outline-light {
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        .btn-outline-light:hover {
+            background-color: var(--afor-green);
+            border-color: var(--afor-green);
+            color: white;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem;
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+            padding: 1.5rem;
+        }
+
+        .form-control, .form-select {
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 8px;
+            padding: 10px 15px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: var(--input-bg);
+            border-color: var(--afor-green);
+            color: var(--text-color);
+            box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+        }
+
+        .form-label {
+            color: var(--text-color);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-danger {
+            background-color: var(--error-color);
+            border: none;
+        }
+
+        .btn-danger:hover {
+            background-color: #DC2626;
+        }
+
+        .btn-info {
+            background-color: var(--afor-light-green);
+            border: none;
+            color: white;
+        }
+
+        .btn-info:hover {
+            background-color: #2DD4BF;
+            color: white;
+        }
+
+        .dataTables_filter input {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            color: var(--text-color) !important;
+        }
+
+        .dataTables_filter input:focus {
+            border-color: var(--afor-green) !important;
+            box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1) !important;
+        }
+
+        .dataTables_length select {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            color: var(--text-color) !important;
+        }
+
+        .dataTables_info {
+            color: var(--text-muted) !important;
+        }
+
+        .page-link {
+            color: var(--afor-green);
+            background-color: var(--input-bg);
+            border-color: var(--border-color);
+        }
+
+        .page-link:hover {
+            color: var(--afor-green-hover);
+            background-color: rgba(5, 150, 105, 0.1);
+        }
+
+        .page-item.active .page-link {
+            background-color: var(--afor-green);
+            border-color: var(--afor-green);
+        }
+
+        .theme-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+            margin: 0 15px;
+        }
+
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--text-muted);
+            transition: .4s;
+            border-radius: 30px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--afor-green);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(30px);
+        }
+
+        .theme-icon {
+            color: var(--text-color);
+            margin: 0 5px;
+        }
+
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+
+        .custom-toast {
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        }
+
+        .custom-toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .time-indicator {
+            padding: 8px 15px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            margin-right: 15px;
+            border: 1px solid var(--border-color);
+        }
+
+        .help-button {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            background-color: var(--afor-green);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .help-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Style pour le menu de filtre */
+        div.dt-button-collection {
+            position: absolute !important;
+            top: auto !important;
+            left: auto !important;
+            transform: none !important;
+            width: auto !important;
+            background: var(--card-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 8px !important;
+            padding: 8px !important;
+            margin-top: 3px !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+            z-index: 2002 !important;
+        }
+
+        .dt-button-collection .dt-button {
+            display: block !important;
+            width: 100% !important;
+            text-align: left !important;
+            padding: 8px 12px !important;
+            margin: 2px 0 !important;
+            border: none !important;
+            background: transparent !important;
+            color: var(--text-color) !important;
+            border-radius: 4px !important;
+            transition: all 0.2s !important;
+        }
+
+        .dt-button-collection .dt-button:hover {
+            background: var(--afor-green) !important;
+            color: white !important;
+        }
+
+        .dt-button-collection .dt-button.active {
+            background: var(--afor-green) !important;
+            color: white !important;
+        }
+
+        /* Style pour le bouton Colonnes */
+        button.dt-button {
+            background: var(--card-bg) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-color) !important;
+            padding: 6px 12px !important;
+            border-radius: 4px !important;
+            margin-right: 8px !important;
+        }
+
+        button.dt-button:hover {
+            background: var(--afor-green) !important;
+            color: white !important;
+            border-color: var(--afor-green) !important;
+        }
+
+        /* Overlay de fond */
+        div.dt-button-background {
+            display: none !important;
+        }
+
+        /* Conteneur des boutons */
+        div.dt-buttons {
+            margin-bottom: 10px !important;
+        }
+
+        /* Style pour le menu déroulant */
+        div.dt-button-collection div[role="menu"] {
+            max-height: 400px !important;
+            overflow-y: auto !important;
+            padding: 0 !important;
+        }
+
+        @media (max-width: 768px) {
+            .stats-card {
+                margin-bottom: 15px;
+            }
+            
+            .table-container {
+                padding: 10px;
+                overflow-x: auto;
+            }
+            
+            .dataTables_wrapper {
+                padding: 10px;
+            }
+
+            .table {
+                display: block;
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .navbar-brand img {
+                height: 30px;
+            }
+
+            .btn {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Adaptation des couleurs des statistiques au thème */
+        [data-bs-theme="light"] {
+            --theme-icon-bg: #e8f0fe;
+            --theme-icon: #0d6efd;
+            --theme-text: #0d6efd;
+            --theme-badge-siege: #198754;
+            --theme-badge-interieur: #0d6efd;
+        }
+
+        [data-bs-theme="dark"] {
+            --theme-icon-bg: #1a1d20;
+            --theme-icon: #ffffff;
+            --theme-text: #ffffff;
+            --theme-badge-siege: #75b798;
+            --theme-badge-interieur: #6ea8fe;
+        }
+
+        .theme-icon-bg {
+            background-color: var(--theme-icon-bg);
+        }
+
+        .theme-icon {
+            color: var(--theme-icon);
+        }
+
+        .theme-text {
+            color: var(--theme-text);
+        }
+
+        .badge-siege {
+            background-color: var(--theme-badge-siege) !important;
+        }
+
+        .badge-interieur {
+            background-color: var(--theme-badge-interieur) !important;
+        }
+
+        /* Style pour les options du select */
+        select option {
+            color: black !important;
+        }
+
+        /* Styles pour le tableau des employés */
+        #employeesTable {
+            font-family: 'Poppins', sans-serif !important;
+        }
+        
+        #employeesTable th, 
+        #employeesTable td {
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        .dataTables_wrapper .dataTables_length,
+        .dataTables_wrapper .dataTables_filter,
+        .dataTables_wrapper .dataTables_info,
+        .dataTables_wrapper .dataTables_processing,
+        .dataTables_wrapper .dataTables_paginate {
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        /* Style pour les boutons d'export */
+        div.dt-buttons .btn {
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        /* Styles pour les cases à cocher */
+        table.dataTable tbody tr.selected {
+            background-color: rgba(13, 110, 253, 0.1) !important;
+        }
+
+        table.dataTable tbody td.select-checkbox:before {
+            content: ' ';
+            display: block;
+            background: #fff;
+            border: 1.5px solid #888;
+            border-radius: 3px;
+            box-sizing: border-box;
+            width: 18px;
+            height: 18px;
+            margin: auto;
+        }
+
+        table.dataTable tr.selected td.select-checkbox:before {
+            border-color: var(--afor-green);
+        }
+
+        table.dataTable tr.selected td.select-checkbox:after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--afor-green);
+            font-size: 14px;
+        }
+
+        table.dataTable tbody td.select-checkbox {
+            position: relative;
+        }
+
+        /* Style pour la colonne Situation Géographique */
+        .location-badge {
+            color: #000000 !important;
+            font-weight: normal;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 2px 0;
+            display: inline-block;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .location-siege {
+            background-color: #e9ecef;
+        }
+        
+        .location-interieur {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="animated-background"></div>
+    <div class="overlay"></div>
+    <div class="loader"></div>
+
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
+
+    <!-- Help Button -->
+    <div class="help-button" onclick="showHelp()">
+        <i class="fas fa-question"></i>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand app-title" href="#">
+                Emploi PRESFOR
+            </a>
+            <div class="d-flex align-items-center">
+                <div class="time-indicator me-3">
+                    <i class="far fa-clock me-2"></i>
+                    <span id="currentTime">--:--:--</span>
+                </div>
+                <div class="theme-switch-wrapper me-3">
+                    <i class="fas fa-sun theme-icon"></i>
+                    <label class="theme-switch">
+                        <input type="checkbox" id="themeSwitch">
+                        <span class="slider round"></span>
+                    </label>
+                    <i class="fas fa-moon theme-icon"></i>
+                </div>
+
+                <div class="dropdown me-3">
+                    <span id="operatorName">-</span>
+                    <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-user me-2"></i>{{ operator_name }}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                        <li>
+                            <button class="dropdown-item" onclick="showChangePasswordModal()">
+                                <i class="fas fa-key me-2"></i>Modifier le mot de passe
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item" href="{{ url_for('logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Déconnexion
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <!-- Total Employés -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="theme-icon-bg rounded-circle p-3 me-3">
+                                <i class="fa fa-users fa-2x theme-icon"></i>
+                            </div>
+                            <div>
+                                <p class="mb-2">Total Employés</p>
+                                <h6 class="mb-0">
+                                    <span class="counter-value" id="totalEmployees">--</span>
+                                    <div class="spinner-border spinner-border-sm theme-text stats-loader" role="status" style="display: none;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hommes -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="theme-icon-bg rounded-circle p-3 me-3">
+                                <i class="fa fa-male fa-2x theme-icon"></i>
+                            </div>
+                            <div>
+                                <p class="mb-2">Hommes</p>
+                                <h6 class="mb-0">
+                                    <span class="counter-value" id="maleEmployees">--</span>
+                                    <div class="spinner-border spinner-border-sm theme-text stats-loader" role="status" style="display: none;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Femmes -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="theme-icon-bg rounded-circle p-3 me-3">
+                                <i class="fa fa-female fa-2x theme-icon"></i>
+                            </div>
+                            <div>
+                                <p class="mb-2">Femmes</p>
+                                <h6 class="mb-0">
+                                    <span class="counter-value" id="femaleEmployees">--</span>
+                                    <div class="spinner-border spinner-border-sm theme-text stats-loader" role="status" style="display: none;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jeunes Employés -->
+            <div class="col-sm-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <div class="theme-icon-bg rounded-circle p-3 me-3">
+                                <i class="fa fa-user-graduate fa-2x theme-icon"></i>
+                            </div>
+                            <div>
+                                <p class="mb-2">Jeunes Employés (14-35 ans)</p>
+                                <h6 class="mb-0">
+                                    <span class="counter-value" id="youngEmployees">--</span>
+                                    <div class="spinner-border spinner-border-sm theme-text stats-loader" role="status" style="display: none;">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </h6>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Table Container -->
+        <div class="container-fluid mt-4">
+            <div class="row mb-4">
+                <div class="col">
+                    <div class="table-container">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                                    <i class="fas fa-plus me-1"></i>Ajouter un employé
+                                </button>
+                                <button id="renewContractBtn" class="btn btn-warning d-none">
+                                    <i class="fas fa-sync-alt me-1"></i>Reconduire les contrats
+                                </button>
+
+                            </div>
+                            <div id="selectionCounter" class="text-muted"></div>
+                        </div>
+
+                        <!-- Compteur de sélection -->
+                        <div id="selectionCounter" class="text-muted mb-3"></div>
+
+                        <!-- Container pour les alertes -->
+                        <div id="alertContainer"></div>
+
+                        <table id="employeesTable" class="table table-striped table-bordered" data-operator-id="{{ operator_id }}">
+                            <thead>
+                                <tr>
+                                    <th>Region</th>
+                                    <th>Departement</th>
+                                    <th>Sous-Prefecture</th>
+                                    <th>Nom</th>
+                                    <th>Prénom</th>
+                                    <th>Sexe</th>
+                                    <th>Âge</th>
+                                    <th>Poste</th>
+                                    <th>Statut Contrat</th>
+                                    <th>Durée Contrat</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                        <div class="d-flex justify-content-end mt-3">
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-outline-primary" id="printEmployees">
+                                    <i class="fas fa-print me-2"></i>Imprimer
+                                </button>
+                                <button type="button" class="btn btn-outline-success" id="exportExcel">
+                                    <i class="fas fa-file-excel me-2"></i>Excel
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="exportPDF">
+                                    <i class="fas fa-file-pdf me-2"></i>PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- Modal pour voir l'historique des contrats -->
+<div class="modal fade" id="viewContractsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-history me-2"></i>Historique des Contrats
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="employee-info mb-3">
+                    <h6 class="employee-name"></h6>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date de début</th>
+                                <th>Date de fin</th>
+                                <th>Durée</th>
+                                <th>Poste</th>
+                                <th>Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contractsTableBody">
+                            <!-- Les contrats seront insérés ici dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noContractsMessage" class="alert alert-info d-none">
+                    Aucun historique de contrat disponible.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-success" id="exportContractsExcel">
+                    <i class="fas fa-file-excel me-2"></i>Exporter Excel
+                </button>
+                <button type="button" class="btn btn-danger" id="exportContractsPDF">
+                    <i class="fas fa-file-pdf me-2"></i>Exporter PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Modal de reconduction de contrat -->
+    <div class="modal fade" id="renewContractModal" tabindex="-1" aria-labelledby="renewContractModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="renewContractModalLabel">Reconduction de contrat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="renewContractForm">
+                        <input type="hidden" id="renewEmployeeId" name="employeeId">
+                        
+                        <!-- Nom et Prénom -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="renewFirstName" class="form-label">Prénom</label>
+                                <input type="text" class="form-control" id="renewFirstName" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="renewLastName" class="form-label">Nom</label>
+                                <input type="text" class="form-control" id="renewLastName" readonly>
+                            </div>
+                        </div>
+
+                        <!-- Situation géographique -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <label class="form-label">Situation géographique</label>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="renewLocation" id="renewAuSiege" value="siege">
+                                        <label class="form-check-label" for="renewAuSiege">Au siège</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="renewLocation" id="renewALInterieur" value="interieur">
+                                        <label class="form-check-label" for="renewALInterieur">À l'intérieur</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Localisation -->
+                        <div class="row mb-3" id="renewLocationFields">
+                            <div class="col-md-4">
+                                <select class="form-select" id="renewRegion" name="region">
+                                    <option value="">Sélectionner une région</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="renewDepartement" name="departement">
+                                    <option value="">Sélectionner un département</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="renewSousprefecture" name="sousprefecture">
+                                    <option value="">Sélectionner une sous-préfecture</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dates et durée -->
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="renewStartDate" class="form-label">Date de début <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="renewStartDate" name="startDate" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="renewDuration" class="form-label">Durée (en mois) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="renewDuration" name="duration" required min="1">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="renewEndDate" class="form-label">Date de fin</label>
+                                <input type="date" class="form-control" id="renewEndDate" name="endDate" readonly>
+                            </div>
+                        </div>
+
+                        <!-- Poste et Catégorie -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="renewPosition" class="form-label">Poste <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewPosition" name="position" required>
+                                    <option value="">Sélectionner un poste</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="renewCategorie" class="form-label">Catégorie <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewCategorie" name="categorie" required>
+                                    <option value="">Sélectionner une catégorie</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Diplôme et École -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="renewDiplome" class="form-label">Diplôme <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewDiplome" name="diplome" required>
+                                    <option value="">Sélectionner un diplôme</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="renewEcole" class="form-label">École <span class="text-danger">*</span></label>
+                                <select class="form-control" id="renewEcole" name="ecole" required>
+                                    <option value="">Sélectionner une école</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" id="submitRenewContract">Renouveler le contrat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Modal d'ajout/modification d'employé -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-plus me-2"></i>Ajouter un Employé
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addEmployeeForm" class="needs-validation" novalidate>
+                    
+                    <!-- Situation géographique -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Situation géographique</label>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="availability" id="auSiege" value="siege" checked>
+                                    <label class="form-check-label" for="auSiege">Au siège</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="availability" id="aLInterieur" value="interieur">
+                                    <label class="form-check-label" for="aLInterieur">À l'intérieur</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Localisation -->
+                    <div class="row mb-3" id="locationFields">
+                        <div class="col-md-4">
+                            <select class="form-select" id="region" name="region" disabled>
+                                <option value="">Sélectionner une région</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select" id="departement" name="departement" disabled>
+                                <option value="">Sélectionner un département</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select" id="sousprefecture" name="sousprefecture" disabled>
+                                <option value="">Sélectionner une sous-préfecture</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Nom et Prénom -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="lastName" name="last_name" required>
+                                <label for="lastName">Nom</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="text" class="form-control" id="firstName" name="first_name" required>
+                                <label for="firstName">Prénom</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Genre et Contact -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select class="form-select" id="gender" name="gender" required>
+                                    <option value="">Sélectionner...</option>
+                                    <option value="M">Homme</option>
+                                    <option value="F">Femme</option>
+                                </select>
+                                <label for="gender">Genre</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="tel" class="form-control" id="contact" name="contact" required pattern="[0-9]{10}">
+                                <label for="contact">Contact (Numéro de téléphone)</label>
+                            </div>
+                            <div class="form-text">Format: 0123456789</div>
+                        </div>
+                    </div>
+
+                    <!-- Poste et Catégorie -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select class="form-select" id="poste" name="poste" required>
+                                    <option value="">Sélectionner un poste</option>
+                                    <!-- Options chargées dynamiquement -->
+                                    <option value="autre">Autre</option>
+                                </select>
+                                <label for="poste">Poste</label>
+                            </div>
+                            <div id="autrePosteDiv" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control" id="autrePoste" placeholder="Préciser le poste">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select class="form-select" id="categorie" name="categorie" required>
+                                    <option value="">Sélectionner une catégorie</option>
+                                    <!-- Options chargées dynamiquement -->
+                                    <option value="autre">Autre</option>
+                                </select>
+                                <label for="categorie">Catégorie</label>
+                            </div>
+                            <div id="autreCategorieDiv" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control" id="autreCategorie" placeholder="Préciser la catégorie">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Diplôme et École -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select class="form-select" id="diplome" name="diplome">
+                                    <option value="">Sélectionner un diplôme</option>
+                                    <!-- Options chargées dynamiquement -->
+                                    <option value="autre">Autre</option>
+                                </select>
+                                <label for="diplome">Diplôme</label>
+                            </div>
+                            <div id="autreDiplomeDiv" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control" id="autreDiplome" placeholder="Préciser le diplôme">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <select class="form-select" id="ecole" name="ecole">
+                                    <option value="">Sélectionner une école</option>
+                                    <!-- Options chargées dynamiquement -->
+                                    <option value="autre">Autre</option>
+                                </select>
+                                <label for="ecole">École</label>
+                            </div>
+                            <div id="autreEcoleDiv" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control" id="autreEcole" placeholder="Préciser l'école">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date de naissance et Âge -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="date" class="form-control" id="birthDate" name="birth_date" required>
+                                <label for="birthDate">Date de naissance</label>
+                            </div>
+                            <small class="text-muted mt-1" id="ageText"></small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-floating">
+                                <input type="number" class="form-control" id="contractDuration" name="contract_duration" required min="1" value="3">
+                                <label for="contractDuration">Durée du contrat (mois)</label>
+                            </div>
+                            <small class="text-muted contract-duration-text"></small>
+                        </div>
+                    </div>
+                                
+                                <!-- Durée et dates du contrat -->
+                                <div class="row mb-3">
+          
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <input type="date" class="form-control" id="contractStartDate" name="contract_start_date">
+                                            <label for="contractStartDate">Date de début</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="form-floating">
+                                            <input type="date" class="form-control" id="contractEndDate" readonly>
+                                            <label for="contractEndDate">Date de fin</label>
+                                        </div>
+                                    </div>  
+                                </div>
+            
+                                <!-- Alerte contrat expiré -->
+                                <div class="contract-expiration-section alert alert-warning" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Contrat potentiellement expiré!</strong>
+                                    <p>La date de fin calculée est dépassée. Veuillez confirmer l'état du contrat.</p>
+                                </div>
+                </form>
+            </div>
+
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="submit" form="addEmployeeForm" class="btn btn-primary">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+    <!-- Modal Changement de mot de passe -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changePasswordModalLabel">Modifier le mot de passe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="changePasswordForm">
+                        <div class="mb-3">
+                            <label for="currentPassword" class="form-label">Mot de passe actuel</label>
+                            <input type="password" class="form-control" id="currentPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newPassword" class="form-label">Nouveau mot de passe</label>
+                            <input type="password" class="form-control" id="newPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirmPassword" class="form-label">Confirmer le nouveau mot de passe</label>
+                            <input type="password" class="form-control" id="confirmPassword" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="changePassword()">Enregistrer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Gestion de la situation géographique
+        document.querySelectorAll('input[name="availability"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const locationFields = document.querySelectorAll('#locationFields select');
+                const isInterieur = this.value === 'interieur';
+                
+                locationFields.forEach(field => {
+                    field.disabled = !isInterieur;
+                    if (!isInterieur) {
+                        field.value = '';
+                    }
+                });
+                
+                // Si "À l'intérieur" est sélectionné, charger les régions
+                if (isInterieur) {
+                    loadInitialData();
+                }
+            });
+        });
+
+        // Chargement des départements
+        document.getElementById('region').addEventListener('change', async function() {
+            console.log('Changement de région:', this.value); // Debug
+            
+            const departementSelect = document.getElementById('departement');
+            const sousprefectureSelect = document.getElementById('sousprefecture');
+            
+            // Réinitialiser les selects dépendants
+            departementSelect.innerHTML = '<option value="">Sélectionner un département</option>';
+            sousprefectureSelect.innerHTML = '<option value="">Sélectionner une sous-préfecture</option>';
+            
+            if (!this.value) return;
+            
+            try {
+                const response = await fetch('/api/departements/' + this.value);
+                const data = await response.json();
+                console.log('Départements reçus:', data); // Debug
+                
+                if (data.success && data.data) {
+                    fillSelect('departement', data.data);
+                } else {
+                    console.error('Erreur:', data.error || 'Pas de données reçues');
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des départements:', error);
+            }
+        });
+
+        // Chargement des régions basé sur le projet
+        async function loadRegions() {
+            try {
+                const response = await fetch('/api/regions/' + currentProject);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const regionSelect = document.getElementById('region');
+                    regionSelect.innerHTML = '<option value="">Sélectionner une région</option>';
+                    
+                    data.regions.forEach(region => {
+                        const option = document.createElement('option');
+                        option.value = region.id;
+                        option.textContent = region.name;
+                        regionSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des régions:', error);
+            }
+        }
+
+        // Chargement des départements basé sur la région
+        document.getElementById('region').addEventListener('change', async function() {
+            const departementSelect = document.getElementById('departement');
+            const sousprefectureSelect = document.getElementById('sousprefecture');
+            
+            departementSelect.innerHTML = '<option value="">Sélectionner un département</option>';
+            sousprefectureSelect.innerHTML = '<option value="">Sélectionner une sous-préfecture</option>';
+            
+            if (this.value) {
+                try {
+                    const response = await fetch('/api/departements/' + this.value);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        data.departements.forEach(dept => {
+                            const option = new Option(dept.name, dept.id);
+                            departementSelect.add(option);
+                        });
+                        console.log(`${data.departements.length} départements chargés`);
+                    } else {
+                        console.error('Erreur lors du chargement des départements:', data.error);
+                    }
+                } catch (error) {
+                    console.error('Erreur lors du chargement des départements:', error);
+                }
+            }
+        });
+
+        // Chargement des sous-préfectures basé sur le département
+        document.getElementById('departement').addEventListener('change', async function() {
+            const sousprefectureSelect = document.getElementById('sousprefecture');
+            sousprefectureSelect.innerHTML = '<option value="">Sélectionner une sous-préfecture</option>';
+            
+            if (this.value) {
+                try {
+                    const response = await fetch('/api/sousprefectures/' + this.value);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        data.sousprefectures.forEach(sp => {
+                            const option = new Option(sp.name, sp.id);
+                            sousprefectureSelect.add(option);
+                        });
+                        console.log(`${data.sousprefectures.length} sous-préfectures chargées`);
+                    } else {
+                        console.error('Erreur lors du chargement des sous-préfectures:', data.error);
+                    }
+                } catch (error) {
+                    console.error('Erreur lors du chargement des sous-préfectures:', error);
+                }
+            }
+        });
+
+        // Calcul de l'âge basé sur la date de naissance
+        document.getElementById('birthDate').addEventListener('change', function() {
+            const birthDate = new Date(this.value);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            
+            document.getElementById('ageText').textContent = age + ' ans';
+        });
+
+        // Gestion des champs "Autre"
+        ['poste', 'categorie', 'diplome', 'ecole'].forEach(field => {
+            document.getElementById(field).addEventListener('change', function() {
+                const autreDiv = document.getElementById('autre' + field.charAt(0).toUpperCase() + field.slice(1) + 'Div');
+                autreDiv.style.display = this.value === 'autre' ? 'block' : 'none';
+            });
+        });
+
+        // Chargement initial des listes
+        async function loadInitialData() {
+            try {
+                console.log('Chargement des données initiales...'); // Debug
+                const responses = await Promise.all([
+                    fetch('/api/postes'),
+                    fetch('/api/categories'),
+                    fetch('/api/diplomes'),
+                    fetch('/api/ecoles'),
+                    fetch('/api/regions')
+                ]);
+                
+                const results = await Promise.all(
+                    responses.map(r => r.json())
+                );
+                
+                console.log('Résultats reçus:', results); // Debug
+                
+                // Remplir les selects avec les données
+                const selects = ['poste', 'categorie', 'diplome', 'ecole', 'region'];
+                results.forEach((result, index) => {
+                    if (result.success) {
+                        fillSelect(selects[index], result.data);
+                    } else {
+                        console.error('Erreur pour', selects[index], ':', result.error);
+                    }
+                });
+            } catch (error) {
+                console.error('Erreur lors du chargement des données:', error);
+            }
+        }
+
+        function fillSelect(id, data) {
+            const select = document.getElementById(id);
+            if (!select) return;
+            
+            // Garder l'option par défaut
+            let options = `<option value="">Sélectionner...</option>`;
+            
+            // Ajouter les options en fonction du type de select
+            if (id === 'poste') {
+                data.forEach(item => {
+                    options += `<option value="${item.id}">${item.titre}</option>`;
+                });
+                // Ajouter l'option "Autre" pour poste
+                options += `<option value="autre">Autre</option>`;
+            } else {
+                // Pour les autres selects, garder le comportement existant
+                data.forEach(item => {
+                    options += `<option value="${item.id}">${item.name}</option>`;  
+                });
+                // Ajouter l'option "Autre" pour les autres selects si nécessaire
+                if (['categorie', 'diplome', 'ecole'].includes(id)) {
+                    options += `<option value="autre">Autre</option>`;
+                }
+            }
+            
+            select.innerHTML = options;
+            
+            // Debug
+            console.log(`Remplissage de ${id}:`, {
+                données_reçues: data,
+                options_générées: options
+            });
+        }
+
+        // Chargement des départements quand une région est sélectionnée
+        document.getElementById('region').addEventListener('change', async function() {
+            if (!this.value) return;
+            try {
+                console.log('Chargement des départements pour la région:', this.value); // Debug
+                const response = await fetch('/api/departements/' + this.value);
+                const data = await response.json();
+                console.log('Départements reçus:', data); // Debug
+                
+                if (data.success) {
+                    fillSelect('departement', data.data);
+                    document.getElementById('sousprefecture').innerHTML = '<option value="">Sélectionner une sous-préfecture</option>';
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        });
+
+        // Chargement des sous-préfectures quand un département est sélectionné
+        document.getElementById('departement').addEventListener('change', async function() {
+            if (!this.value) {
+                document.getElementById('sousprefecture').innerHTML = '<option value="">Sélectionner une sous-préfecture</option>';
+                return;
+            }
+            
+            try {
+                console.log('Chargement des sous-préfectures pour le département:', this.value); // Debug
+                const response = await fetch('/api/sousprefectures/' + this.value);
+                const data = await response.json();
+                console.log('Sous-préfectures reçues:', data); // Debug
+                
+                if (data.success) {
+                    fillSelect('sousprefecture', data.data);
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        });
+
+        // Charger les données au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page chargée, chargement des données...'); // Debug
+            loadInitialData();
+        });
+    </script>
+
+<!-- Ajout des scripts nécessaires pour l'export -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+    
+<!-- Script personnalisé -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script>
+        // Script de débogage
+        $(document).ready(function() {
+            // Intercepter les erreurs AJAX
+            $(document).ajaxError(function(event, jqXHR, settings, error) {
+                console.error('Erreur AJAX:', {
+                    status: jqXHR.status,
+                    statusText: jqXHR.statusText,
+                    responseText: jqXHR.responseText,
+                    url: settings.url
+                });
+            });
+
+            // Vérifier si DataTables est chargé
+            if (typeof $.fn.DataTable === 'undefined') {
+                console.error('DataTables n\'est pas chargé !');
+            }
+
+            // Vérifier si la table existe
+            if ($('#employeesTable').length === 0) {
+                console.error('La table #employeesTable n\'existe pas dans le DOM !');
+            }
+
+            // Intercepter les erreurs JavaScript
+            window.onerror = function(msg, url, lineNo, columnNo, error) {
+                console.error('Erreur JavaScript:', {
+                    message: msg,
+                    url: url,
+                    line: lineNo,
+                    column: columnNo,
+                    error: error
+                });
+                return false;
+            };
+        });
+    </script>
+
+    <script>
+        // Fonction d'alerte
+        function showAlert(message, type) {
+            const alertDiv = $('<div>')
+                .addClass(`alert alert-${type} alert-dismissible fade show`)
+                .attr('role', 'alert')
+                .html(`
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `);
+            
+            $('#alertContainer').append(alertDiv);
+            
+            // Auto-fermeture après 5 secondes
+            setTimeout(() => {
+                alertDiv.alert('close');
+            }, 5000);
+        }
+    </script>
+    <script>
+        // Fonction pour charger les catégories
+        async function loadCategories() {
+            const categorieSelect = document.getElementById('renewCategorie');
+            if (!categorieSelect) {
+                console.error('Element renewCategorie non trouvé');
+                return;
+            }
+            
+            try {
+                console.log('Chargement des catégories...');
+                const response = await fetch('/api/categories');
+                const data = await response.json();
+                console.log('Réponse reçue:', data);
+                
+                if (data.success) {
+                    categorieSelect.innerHTML = '<option value="">Sélectionner une catégorie</option>';
+                    if (data.data && data.data.length > 0) {
+                        data.data.forEach(category => {
+                            const option = new Option(category.name, category.id);
+                            categorieSelect.add(option);
+                        });
+                        console.log(`${data.data.length} catégories chargées`);
+                    } else {
+                        console.warn('Aucune catégorie trouvée dans la réponse');
+                    }
+                } else {
+                    console.error('Erreur lors du chargement des catégories:', data.error);
+                }
+            } catch (error) {
+                console.error('Erreur lors du chargement des catégories:', error);
+            }
+        }
+
+        // Charger les catégories au chargement de la page
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded - Chargement initial des catégories');
+            loadCategories();
+        });
+
+        // Charger les catégories à l'ouverture du modal
+        const renewContractModal = document.getElementById('renewContractModal');
+        if (renewContractModal) {
+            renewContractModal.addEventListener('show.bs.modal', () => {
+                console.log('Modal ouvert - Rechargement des catégories');
+                loadCategories();
+            });
+        } else {
+            console.error('Modal renewContractModal non trouvé');
+        }
+    </script>
+</body>
+</html>

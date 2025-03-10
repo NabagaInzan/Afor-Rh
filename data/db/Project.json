@@ -1,0 +1,156 @@
+{
+    "operateurs": [
+      {
+        "presfor": {
+          "nom": "CGEDS",
+          "contact1": "(+225) 01 53 51 51 51",
+          "contact2": null,
+          "adresse1": "BP 420 Grand Bassam",
+          "adresse2": null,
+          "email1": "info@cgeds.com",
+          "email2": null,
+          "region1": "TCHOLOGO",
+          "region2": "PORO",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "GROUPEMENT TVC ET CGE-SOTTI",
+          "contact1": "(+41) 78 60 30 01 8",
+          "contact2": "07 77 00 37 47",
+          "adresse1": null,
+          "adresse2": null,
+          "email1": null,
+          "email2": null,
+          "region1": "LOH-DJIBOUA",
+          "region2": "GUEMON",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "CABINET TOPO BENHIBA",
+          "contact1": "(+212) 05 37 36 40 69",
+          "contact2": null,
+          "adresse1": "Résidence Paris N°7",
+          "adresse2": "B - KENITRA-MAROC",
+          "email1": null,
+          "email2": null,
+          "region1": "TONKPI",
+          "region2": "NAWA",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "GROUPEMENT GEOART / SETOM / CGEKA",
+          "contact1": "+212 (0) 537 53 45 61",
+          "contact2": null,
+          "adresse1": null,
+          "adresse2": null,
+          "email1": "tariqcouzi@gmail.com",
+          "email2": null,
+          "region1": null,
+          "region2": null,
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "GROUPEMENT ALLIANCE IVOIRIENNE CITRAT/CGE SAKO/CDGE C. DOHOULOU/CGET/IVOIRE GEO AGRO",
+          "contact1": "(+225) 0709804927",
+          "contact2": "707905332",
+          "adresse1": "06 BP 6070 Abidjan 06",
+          "adresse2": null,
+          "email1": "sako.brahima@cabinetsako.com",
+          "email2": "info@citrat.ci",
+          "region1": "AGNEBY-TIASSA",
+          "region2": "MORONOU",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "GROUPEMENT ETAFAT-CGEA 2TF",
+          "contact1": "(+212) 5 22 79 87 00/01",
+          "contact2": null,
+          "adresse1": "Lotissement Salaj - Ain Diab 20180 Casablanca - Maroc",
+          "adresse2": null,
+          "email1": null,
+          "email2": null,
+          "region1": "GONTOUNGO",
+          "region2": "BAFING",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "GROUPEMENT AVICENNE CONSULT/ GROUPE DE GEOMATIQUE AZIMUT TERRABO INGENIEUR CONSEIL / CABINET DE GEOMETRE EXPERT /AKMEL YEDAGNE (GE-2ATY)",
+          "contact1": "(+225) 05 05 26 24 42",
+          "contact2": null,
+          "adresse1": "Menontin, Rue 9.281-Lot N° 2932",
+          "adresse2": null,
+          "email1": "koneamed01@gmail.com",
+          "email2": null,
+          "region1": "N'ZI + ME",
+          "region2": "INDENIE DJUABLIN + SUD COMOE",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      },
+      {
+        "presfor": {
+          "nom": "GROUPEMENT CAG",
+          "contact1": "225 01 40 00 06",
+          "contact2": null,
+          "adresse1": "21 BP 4380 Abidjan 21",
+          "adresse2": null,
+          "email1": "Soro.nangaz@geometre",
+          "email2": null,
+          "region1": "WOROGOUGOU",
+          "region2": "CAVALLY",
+          "departement": null
+        },
+        "pasfor": {
+          "region1": null,
+          "region2": null,
+          "departement": null
+        }
+      }
+    ]
+  }

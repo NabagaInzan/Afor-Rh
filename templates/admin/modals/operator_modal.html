@@ -1,0 +1,48 @@
+<!-- Modal Ajout/Modification Opérateur -->
+<div class="modal fade" id="addOperatorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un opérateur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="operatorForm">
+                    <input type="hidden" id="operatorId">
+                    <div class="mb-3">
+                        <label for="operatorName" class="form-label">Nom</label>
+                        <input type="text" class="form-control" id="operatorName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorContact" class="form-label">Contact</label>
+                        <input type="tel" class="form-control" id="operatorContact" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="operatorEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorPassword" class="form-label">Mot de passe</label>
+                        <input type="password" class="form-control" id="operatorPassword" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorType" class="form-label">Type d'acteur</label>
+                        <select class="form-select" id="operatorType" required>
+                            <option value="">Sélectionnez un type</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="operatorProject" class="form-label">Projet</label>
+                        <select class="form-select" id="operatorProject" required>
+                            <option value="">Sélectionnez un projet</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveOperator">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,1669 @@
+:root {
+    --afor-green: #059669;
+    --afor-green-hover: #047857;
+    --afor-light-green: #34D399;
+    --border-color: rgba(229, 231, 235, 0.4);
+    --error-color: #EF4444;
+    --success-color: #10B981;
+    --card-bg: rgba(255, 255, 255, 0.85);
+    --text-color: #1F2937;
+    --text-muted: #6B7280;
+    --input-bg: rgba(255, 255, 255, 0.9);
+    --bg-overlay: linear-gradient(
+        135deg, 
+        rgba(255, 255, 255, 0.8) 0%,
+        rgba(255, 255, 255, 0.6) 50%,
+        rgba(255, 255, 255, 0.8) 100%
+    );
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-15px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+@keyframes backgroundPan {
+    0% {
+        background-position: 0% 0%;
+    }
+    50% {
+        background-position: 100% 100%;
+    }
+    100% {
+        background-position: 0% 0%;
+    }
+}
+
+body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    background: none;
+}
+
+.animated-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('/static/operateur.jpeg') no-repeat center center fixed;
+    background-size: cover;
+    z-index: -2;
+    animation: zoomInOut 20s ease-in-out infinite;
+}
+
+@keyframes zoomInOut {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-overlay);
+    z-index: -1;
+    backdrop-filter: blur(5px);
+    transition: background 0.3s ease;
+}
+
+:root[data-theme="dark"] .overlay {
+    background: linear-gradient(
+        135deg,
+        rgba(17, 24, 39, 0.92) 0%,
+        rgba(17, 24, 39, 0.85) 50%,
+        rgba(17, 24, 39, 0.92) 100%
+    );
+}
+
+.stats-card {
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--card-bg);
+}
+
+.modal-content {
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--card-bg);
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stats-card {
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.stats-card:nth-child(1) { animation-delay: 0.1s; }
+.stats-card:nth-child(2) { animation-delay: 0.2s; }
+.stats-card:nth-child(3) { animation-delay: 0.3s; }
+.stats-card:nth-child(4) { animation-delay: 0.4s; }
+
+.navbar {
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:root[data-theme="dark"] .navbar {
+    background: rgba(17, 24, 39, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-card {
+    transition: all 0.3s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+#brandLogo {
+    animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
+
+.container {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    position: relative;
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: 1.5rem;
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+    width: 100%;
+    max-width: 380px;
+    opacity: 0;
+    animation: scaleIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: var(--text-color);
+}
+
+.card-body {
+    padding: 2rem;
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    opacity: 0;
+    animation: fadeInDown 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.login-header img {
+    height: auto;
+    width: 120px;
+    margin-bottom: 1.25rem;
+    transform: scale(0.95);
+    animation: scaleIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.2s forwards;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.login-header h2 {
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.login-header p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.form-control, .form-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    font-size: 0.95rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--input-bg);
+    backdrop-filter: blur(4px);
+    color: var(--text-color);
+}
+
+.form-control:focus, .form-select:focus {
+    outline: none;
+    border-color: var(--afor-green);
+    box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.1);
+    background: white;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.password-field {
+    position: relative;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #6B7280;
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: color 0.2s ease;
+}
+
+.password-toggle:hover {
+    color: var(--afor-green);
+}
+
+.btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background-color: var(--afor-green);
+    color: white;
+    border: none;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(5, 150, 105, 0.1);
+}
+
+.btn-primary:hover {
+    background-color: var(--afor-green-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-primary:focus {
+    outline: none;
+    box-shadow: 
+        0 0 0 3px rgba(5, 150, 105, 0.4),
+        0 2px 4px rgba(5, 150, 105, 0.1);
+}
+
+.btn-primary.loading {
+    position: relative;
+    color: transparent;
+}
+
+.btn-primary.loading::after {
+    content: '';
+    position: absolute;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid white;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+}
+
+.alert {
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    opacity: 0;
+    animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.alert-error {
+    background-color: rgba(254, 226, 226, 0.9);
+    color: var(--error-color);
+    border-color: rgba(252, 165, 165, 0.2);
+}
+
+.alert-success {
+    background-color: rgba(209, 250, 229, 0.9);
+    color: var(--success-color);
+    border-color: rgba(110, 231, 183, 0.2);
+}
+
+.shake {
+    animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.theme-selector {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 1000;
+}
+
+.theme-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.theme-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.custom-theme-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+    align-items: center;
+    justify-content: center;
+}
+
+.custom-theme-modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 1rem;
+    width: 90%;
+    max-width: 400px;
+    backdrop-filter: blur(10px);
+}
+
+.modal-content h3 {
+    color: var(--text-color);
+    margin-bottom: 1.5rem;
+    font-size: 1.25rem;
+}
+
+.color-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.color-picker label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    color: var(--text-color);
+}
+
+.color-picker input[type="color"] {
+    width: 100%;
+    height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0;
+}
+
+.color-picker input[type="range"] {
+    width: 100%;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.admin-switch {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    margin-right: 10px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--afor-green);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+.switch-label {
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+/* Styles pour le formulaire d'employé */
+.employee-form-modal {
+    background: transparent;
+}
+
+.employee-form-modal .modal-content {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.employee-form-modal::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('/static/operateur.jpeg') no-repeat center center;
+    background-size: cover;
+    filter: blur(8px);
+    opacity: 0.2;
+    z-index: -1;
+}
+
+.employee-form {
+    padding: 20px;
+}
+
+.form-floating {
+    margin-bottom: 1rem;
+}
+
+.form-floating > .form-control,
+.form-floating > .form-select {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    height: 58px;
+}
+
+.form-floating > label {
+    color: var(--text-muted);
+}
+
+.form-floating > .form-control:focus,
+.form-floating > .form-select:focus {
+    border-color: var(--afor-green);
+    box-shadow: 0 0 0 0.25rem rgba(5, 150, 105, 0.25);
+}
+
+.employee-form-modal .modal-header,
+.employee-form-modal .modal-footer {
+    background: transparent;
+    border: none;
+}
+
+.employee-form-modal .modal-title {
+    color: var(--text-color);
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.employee-form-modal .btn-close {
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.employee-form-modal .form-control::placeholder {
+    color: var(--text-muted);
+}
+
+/* Animation d'entrée pour le modal */
+.modal.fade .modal-dialog {
+    transform: scale(0.8);
+    transition: transform 0.3s ease-in-out;
+}
+
+.modal.show .modal-dialog {
+    transform: scale(1);
+}
+
+/* Validation des champs */
+.form-control:valid,
+.form-select:valid {
+    border-color: var(--success-color);
+}
+
+.form-control:invalid:not(:placeholder-shown),
+.form-select:invalid:not(:placeholder-shown) {
+    border-color: var(--error-color);
+}
+
+/* Style spécifique pour le champ de durée de contrat */
+#contractDuration {
+    font-family: 'Segoe UI', system-ui;
+}
+
+/* Responsive design pour le formulaire */
+@media (max-width: 768px) {
+    .employee-form-modal .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    .employee-form {
+        padding: 10px;
+    }
+    
+    .row.g-4 {
+        gap: 1rem !important;
+    }
+}
+
+@media (max-width: 640px) {
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    .card {
+        max-width: 340px;
+    }
+
+    .login-header h2 {
+        font-size: 1.5rem;
+    }
+
+    .form-control, .form-select, .btn-primary {
+        padding: 0.75rem;
+        font-size: 0.95rem;
+    }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Styles pour les badges d'aide */
+.contract-helper,
+.age-helper {
+    margin-top: 5px;
+}
+
+.contract-helper .badge,
+.age-helper .badge {
+    font-size: 0.85rem;
+    padding: 5px 10px;
+    background-color: var(--afor-green) !important;
+}
+
+/* Style pour le badge opérateur */
+.operator-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    background: var(--card-bg);
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    gap: 8px;
+}
+
+.operator-badge i {
+    color: var(--afor-green);
+}
+
+/* Widget météo */
+.weather-widget {
+    display: none;
+}
+
+.weather-widget i {
+    color: var(--afor-light-green);
+}
+
+/* Animation du logo */
+#brandLogo {
+    transition: transform 0.3s ease;
+}
+
+.navbar-brand:hover #brandLogo {
+    transform: scale(1.1);
+}
+
+/* Style pour le formulaire flottant */
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label,
+.form-floating > .form-select ~ label {
+    color: var(--afor-green);
+    opacity: 1;
+    transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+}
+
+.form-floating > .form-control:focus,
+.form-floating > .form-select:focus {
+    border-color: var(--afor-green);
+    box-shadow: 0 0 0 0.25rem rgba(5, 150, 105, 0.25);
+}
+
+/* Animation des icônes dans les boutons */
+.btn i {
+    transition: transform 0.3s ease;
+}
+
+.btn:hover i {
+    transform: translateX(3px);
+}
+
+.btn-secondary:hover i {
+    transform: translateX(-3px);
+}
+
+/* Style pour le compteur de caractères */
+.char-counter {
+    text-align: right;
+    margin-top: 5px;
+}
+
+.char-counter.text-warning {
+    color: var(--error-color) !important;
+}
+
+/* Adaptation du mode sombre */
+:root[data-theme="dark"] .form-floating > .form-control,
+:root[data-theme="dark"] .form-floating > .form-select {
+    background-color: rgba(31, 41, 55, 0.8);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .form-floating > .form-control:focus,
+:root[data-theme="dark"] .form-floating > .form-select:focus {
+    background-color: rgba(31, 41, 55, 0.95);
+}
+
+:root[data-theme="dark"] .form-floating > label {
+    color: var(--text-muted);
+}
+
+/* Animation de transition pour le changement de thème */
+.operator-name {
+    transition: opacity 0.3s ease;
+}
+
+.operator-badge,
+.weather-widget,
+.time-indicator {
+    transition: all 0.3s ease;
+}
+
+:root[data-theme="dark"] .operator-badge,
+:root[data-theme="dark"] .weather-widget,
+:root[data-theme="dark"] .time-indicator {
+    background: rgba(31, 41, 55, 0.9);
+    border-color: var(--border-color);
+}
+
+/* Styles pour le modal d'aide */
+.help-section {
+    padding: 15px;
+    border-radius: 8px;
+    background: var(--card-bg);
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+}
+
+.help-section h6 {
+    color: var(--afor-green);
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.help-section ul li {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.help-section ul li i {
+    width: 20px;
+    text-align: center;
+}
+
+/* Style pour le modal en mode sombre */
+:root[data-theme="dark"] .help-section {
+    background: rgba(31, 41, 55, 0.95);
+}
+
+:root[data-theme="dark"] .modal-content {
+    background: rgba(17, 24, 39, 0.95);
+    border: 1px solid var(--border-color);
+}
+
+:root[data-theme="dark"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .modal-footer {
+    border-top-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .bg-light {
+    background-color: rgba(31, 41, 55, 0.95) !important;
+}
+
+/* Animation pour les icônes du guide */
+.help-section i {
+    transition: transform 0.3s ease;
+}
+
+.help-section li:hover i {
+    transform: scale(1.2);
+}
+
+/* Style pour l'indicateur de temps */
+.time-indicator {
+    font-size: 1rem;
+    color: var(--text-color);
+    background-color: var(--card-bg);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.time-indicator i {
+    color: var(--afor-green);
+    margin-right: 0.5rem;
+}
+
+.time-indicator span {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+}
+
+/* Amélioration des styles DataTables */
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_processing,
+.dataTables_wrapper .dataTables_paginate {
+    color: var(--text-color) !important;
+    margin: 1rem 0;
+}
+
+.dataTables_wrapper .dataTables_filter input {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: 4px;
+    padding: 5px 10px;
+    margin-left: 10px;
+}
+
+.dataTables_wrapper .dataTables_length select {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    border-radius: 4px;
+    padding: 5px 10px;
+    margin: 0 5px;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+    border-radius: 4px;
+    padding: 5px 10px;
+    margin: 0 2px;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+    background-color: var(--afor-green) !important;
+    border-color: var(--afor-green) !important;
+    color: white !important;
+}
+
+/* Animation de pulsation pour le bouton d'aide */
+@keyframes pulse-ring {
+    0% {
+        transform: scale(0.8);
+    }
+    50% {
+        transform: scale(1);
+    }
+    100% {
+        transform: scale(0.8);
+    }
+}
+
+.help-button {
+    animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.help-button:hover {
+    animation: none;
+    transform: scale(1.1);
+}
+
+/* Style pour les badges dans le guide */
+.help-section .badge {
+    padding: 5px 10px;
+    border-radius: 15px;
+    margin-left: 10px;
+    background-color: var(--afor-green);
+}
+
+/* Styles uniformes pour le tableau */
+.table {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+    font-size: 14px !important;
+    color: var(--text-color) !important;
+}
+
+.table th,
+.table td {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    vertical-align: middle !important;
+    color: inherit !important;
+    text-transform: none !important;
+    padding: 12px !important;
+}
+
+.table th {
+    font-weight: 600 !important;
+    background-color: var(--card-bg) !important;
+}
+
+.table td {
+    font-weight: 400 !important;
+    background-color: var(--input-bg) !important;
+}
+
+/* Uniformiser tous les textes dans le tableau, y compris les badges */
+.table td *,
+.table td span,
+.table td div,
+.table .badge {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    color: inherit !important;
+    text-transform: none !important;
+    background: none !important;
+    padding: 0 !important;
+    font-weight: inherit !important;
+}
+
+/* Retirer les styles de badge par défaut */
+.table .badge-siege,
+.table .badge-interieur {
+    background: none !important;
+    color: inherit !important;
+    border: none !important;
+    padding: 0 !important;
+    font-weight: inherit !important;
+    display: inline !important;
+}
+
+/* Assurer que les boutons dans le tableau ont la même police */
+.table .btn,
+.table .badge {
+    font-family: inherit !important;
+    font-size: inherit !important;
+}
+
+/* Style spécifique pour la situation géographique */
+.table td[data-situation],
+.table td:nth-child(6) {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    color: inherit !important;
+    text-transform: none !important;
+}
+
+/* Styles uniformes pour le tableau */
+.table {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+    font-size: 14px !important;
+}
+
+.table th,
+.table td {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    vertical-align: middle !important;
+}
+
+.table th {
+    font-weight: 600 !important;
+    text-transform: none !important;
+}
+
+.table td {
+    font-weight: 400 !important;
+}
+
+/* Assurer que les boutons dans le tableau ont la même police */
+.table .btn,
+.table .badge {
+    font-family: inherit !important;
+    font-size: inherit !important;
+}
+
+/* Styles pour le logo */
+#brandLogo {
+    height: 40px;
+    width: auto;
+    object-fit: contain;
+}
+
+.logo-container img {
+    height: 60px;
+    width: auto;
+    object-fit: contain;
+    margin-bottom: 20px;
+}
+
+/* Animation pour le texte du logo */
+@keyframes textGradient {
+    0% {
+        background-position: 0% 50%;
+    }
+    50% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+#brandText {
+    font-size: 24px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 10px 20px;
+    background: linear-gradient(
+        45deg,
+        var(--afor-green) 0%,
+        var(--afor-light-green) 25%,
+        var(--afor-green-hover) 50%,
+        var(--afor-light-green) 75%,
+        var(--afor-green) 100%
+    );
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: textGradient 5s ease infinite;
+    position: relative;
+    display: inline-block;
+}
+
+#brandText::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: 0;
+    left: 50%;
+    background: var(--afor-green);
+    transition: all 0.3s ease-in-out;
+    transform: translateX(-50%);
+}
+
+#brandText:hover::after {
+    width: 100%;
+}
+
+/* Animation de pulsation au chargement */
+@keyframes pulseText {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.navbar-brand {
+    animation: pulseText 2s ease-in-out;
+}
+
+/* Animation du logo */
+.logo-text {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 2rem;
+    display: inline-block;
+}
+
+.logo-text .letter {
+    display: inline-block;
+    animation: wavyText 2s infinite;
+    animation-delay: calc(.1s * var(--i));
+    transform-origin: center;
+}
+
+.logo-text .space {
+    width: 0.5em;
+    display: inline-block;
+}
+
+.logo-text .letter:nth-child(1) { --i: 1; }
+.logo-text .letter:nth-child(2) { --i: 2; }
+.logo-text .letter:nth-child(3) { --i: 3; }
+.logo-text .letter:nth-child(4) { --i: 4; }
+.logo-text .letter:nth-child(5) { --i: 5; }
+.logo-text .letter:nth-child(6) { --i: 6; }
+.logo-text .letter:nth-child(8) { --i: 8; }
+.logo-text .letter:nth-child(9) { --i: 9; }
+.logo-text .letter:nth-child(10) { --i: 10; }
+.logo-text .letter:nth-child(11) { --i: 11; }
+.logo-text .letter:nth-child(12) { --i: 12; }
+.logo-text .letter:nth-child(13) { --i: 13; }
+.logo-text .letter:nth-child(14) { --i: 14; }
+
+@keyframes wavyText {
+    0%, 100% {
+        transform: translateY(0);
+        color: #2c3e50;
+    }
+    25% {
+        transform: translateY(-10px) scale(1.1);
+        color: #3498db;
+    }
+    50% {
+        transform: translateY(0) scale(1);
+        color: #2c3e50;
+    }
+    75% {
+        transform: translateY(10px) scale(0.9);
+        color: #e74c3c;
+    }
+}
+
+/* Style hover pour chaque lettre */
+.logo-text .letter:hover {
+    animation: popEffect 0.5s ease;
+    color: #3498db;
+}
+
+@keyframes popEffect {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Style de la page de login */
+.login-container {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 10px;
+    padding: 2rem;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    margin: 2rem auto;
+    position: relative;
+    z-index: 2;
+}
+
+.logo-container {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.password-input {
+    position: relative;
+}
+
+.toggle-password {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+.toggle-password:hover {
+    color: #495057;
+}
+
+.admin-field {
+    display: none;
+    margin-bottom: 1rem;
+}
+
+/* Styles pour la navbar */
+.navbar {
+    padding: 0.5rem 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.navbar .theme-switch-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.navbar .theme-icon {
+    color: #fff;
+    margin: 0 0.5rem;
+}
+
+.navbar .dropdown-menu {
+    margin-top: 0.5rem;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.navbar .dropdown-item {
+    padding: 0.5rem 1rem;
+    color: #333;
+}
+
+.navbar .dropdown-item:hover {
+    background-color: #f8f9fa;
+    color: var(--afor-green);
+}
+
+.navbar .dropdown-item i {
+    width: 1.5rem;
+    text-align: center;
+}
+
+.navbar .btn-outline-light:hover {
+    background-color: rgba(255,255,255,0.1);
+}
+
+/* Suppression des styles pour les filtres de colonnes */
+#employeesTable thead th {
+    padding: 12px !important;
+}
+
+#employeesTable thead th select {
+    display: none;
+}
+
+/* Responsive design pour les filtres */
+@media screen and (max-width: 768px) {
+    #employeesTable thead th {
+        padding: 12px !important;
+    }
+    
+    #employeesTable thead th select {
+        font-size: 0.75rem;
+        height: 25px;
+    }
+}
+
+/* Règles responsives */
+/* Grand écran */
+@media screen and (min-width: 1200px) {
+    .container {
+        max-width: 1140px;
+    }
+
+    .stats-card {
+        padding: 2rem;
+    }
+
+    .table-container {
+        padding: 2rem;
+    }
+}
+
+/* Écran moyen */
+@media screen and (max-width: 992px) {
+    .navbar .app-title {
+        font-size: 1.2rem;
+    }
+
+    .stats-card {
+        padding: 1.5rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.5rem;
+    }
+
+    .table-container {
+        padding: 1.5rem;
+    }
+
+    .btn-group {
+        flex-wrap: wrap;
+    }
+
+    .btn-group .btn {
+        margin: 2px;
+    }
+}
+
+/* Tablette */
+@media screen and (max-width: 768px) {
+    .navbar {
+        padding: 0.5rem;
+    }
+
+    .navbar .container-fluid {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .navbar .d-flex {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .time-indicator,
+    .theme-switch-wrapper,
+    .dropdown {
+        width: 100%;
+        margin: 0.25rem 0;
+    }
+
+    .dropdown-menu {
+        width: 100%;
+    }
+
+    .stats-card {
+        margin-bottom: 1rem;
+    }
+
+    .table-container {
+        padding: 1rem;
+        margin: 0.5rem;
+    }
+
+    #employeesTable {
+        font-size: 0.9rem;
+    }
+
+    .dataTables_wrapper {
+        padding: 0.5rem;
+    }
+
+    .dataTables_filter,
+    .dataTables_length {
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+
+    .btn {
+        width: 100%;
+        margin: 0.25rem 0;
+    }
+}
+
+/* Mobile */
+@media screen and (max-width: 576px) {
+    body {
+        font-size: 14px;
+    }
+
+    .navbar .app-title {
+        font-size: 1rem;
+    }
+
+    .stats-card {
+        padding: 1rem;
+    }
+
+    .stats-card h3 {
+        font-size: 1.2rem;
+    }
+
+    .table-container {
+        padding: 0.5rem;
+        margin: 0;
+    }
+
+    #employeesTable {
+        font-size: 0.8rem;
+    }
+
+    #employeesTable thead th {
+        padding: 0.5rem !important;
+    }
+
+    #employeesTable tbody td {
+        padding: 0.5rem;
+    }
+
+    .btn-group {
+        flex-direction: column;
+    }
+
+    .btn-group .btn {
+        width: 100%;
+        margin: 0.25rem 0;
+    }
+
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+
+    .form-floating {
+        margin-bottom: 1rem;
+    }
+
+    .form-floating > label {
+        font-size: 0.9rem;
+    }
+
+    .help-button {
+        width: 40px;
+        height: 40px;
+        bottom: 10px;
+        left: 10px;
+    }
+
+    .toast-container {
+        bottom: 10px;
+        right: 10px;
+        max-width: calc(100% - 20px);
+    }
+}
+
+/* Pour les très petits écrans */
+@media screen and (max-width: 360px) {
+    .navbar .app-title {
+        font-size: 0.9rem;
+    }
+
+    .stats-card {
+        padding: 0.75rem;
+    }
+
+    #employeesTable {
+        font-size: 0.75rem;
+    }
+
+    .modal-header {
+        padding: 0.75rem;
+    }
+
+    .modal-body {
+        padding: 0.75rem;
+    }
+
+    .form-floating > label {
+        font-size: 0.8rem;
+    }
+}
+
+/* Orientation paysage sur mobile */
+@media screen and (max-height: 576px) and (orientation: landscape) {
+    .navbar {
+        position: static;
+    }
+
+    .container {
+        margin-top: 0.5rem;
+    }
+
+    .modal-dialog {
+        max-height: 100vh;
+        margin: 0 auto;
+    }
+
+    .modal-body {
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+    }
+}
+
+/* Support des écrans haute résolution */
+@media screen and (min-resolution: 192dpi) {
+    body {
+        font-smoothing: antialiased;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+/* Support du mode sombre du système */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+        --card-bg: rgba(17, 24, 39, 0.95);
+        --text-color: #F9FAFB;
+        --text-muted: #D1D5DB;
+        --input-bg: rgba(31, 41, 55, 0.9);
+    }
+}
+
+/* Styles pour le switch de thème */
+.theme-switch-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--card-bg);
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.theme-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    margin: 0;
+}
+
+.theme-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+}
+
+.theme-switch input:checked + .slider {
+    background-color: var(--afor-green);
+}
+
+.theme-switch input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+.theme-icon {
+    color: var(--text-color);
+    font-size: 1rem;
+}
+
+/* Mode sombre */
+:root[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #ffffff;
+    --card-bg: rgba(17, 24, 39, 0.95);
+    --border-color: rgba(156, 163, 175, 0.3);
+    --input-bg: rgba(31, 41, 55, 0.9);
+}
+
+:root[data-theme="dark"] body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .navbar {
+    background-color: #2d3748 !important;
+}
+
+:root[data-theme="dark"] .card {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .modal-content {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .form-control {
+    background-color: var(--input-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .table {
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .table-striped tbody tr:nth-of-type(odd) {
+    background-color: var(--table-stripe);
+}
+
+:root[data-theme="dark"] .dropdown-menu {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+:root[data-theme="dark"] .dropdown-item {
+    color: var(--text-color);
+}
+
+:root[data-theme="dark"] .dropdown-item:hover {
+    background-color: var(--input-bg);
+}

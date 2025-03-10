@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AFOR - Connexion Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background-color: #1a2234;
+            border-radius: 15px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        .logo {
+            color: #00e676;
+            font-size: 3rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: #718096;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .form-control {
+            background-color: #2d3748;
+            border: none;
+            color: #fff;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+        }
+        .form-control::placeholder {
+            color: #718096;
+        }
+        .form-control:focus {
+            background-color: #2d3748;
+            color: #fff;
+            box-shadow: 0 0 0 2px #00e676;
+        }
+        .btn-login {
+            background-color: #00e676;
+            border: none;
+            color: #1a2234;
+            font-weight: bold;
+            padding: 0.75rem;
+            width: 100%;
+            margin-top: 1rem;
+            transition: all 0.3s;
+        }
+        .btn-login:hover {
+            background-color: #00c853;
+            transform: translateY(-2px);
+        }
+        .error-message {
+            color: #ff5252;
+            text-align: center;
+            margin-top: 1rem;
+            display: none;
+        }
+        .mode-switch {
+            background-color: #2d3748;
+            border-radius: 25px;
+            padding: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+        .mode-switch span {
+            color: #718096;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        .mode-switch span.active {
+            background-color: #00e676;
+            color: #1a2234;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">AFOR</div>
+        <div class="subtitle">Système de Gestion</div>
+        
+        <div class="mode-switch">
+            <span id="standardMode">Mode Standard</span>
+            <span id="adminMode" class="active">Mode Admin</span>
+        </div>
+
+        <form id="loginForm">
+            <input type="email" class="form-control" id="email" placeholder="admin@geogestion.com" required>
+            <input type="password" class="form-control" id="password" placeholder="••••••••" required>
+            <button type="submit" class="btn btn-login">CONNEXION ADMIN</button>
+        </form>
+        
+        <div id="errorMessage" class="error-message">Tous les champs sont requis</div>
+    </div>
+
+    <script>
+        document.getElementById('standardMode').addEventListener('click', function() {
+            window.location.href = '/';
+        });
+
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('errorMessage');
+            
+            if (!email || !password) {
+                errorMessage.style.display = 'block';
+                return;
+            }
+            
+            fetch('/admin/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = data.redirect;
+                } else {
+                    errorMessage.textContent = data.error;
+                    errorMessage.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                errorMessage.textContent = 'Erreur de connexion';
+                errorMessage.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+</html>

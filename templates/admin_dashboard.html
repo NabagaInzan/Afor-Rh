@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AFOR - Dashboard Administrateur</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/boxicons@latest/css/boxicons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">AFOR Admin</a>
+            <div class="d-flex">
+                <span class="navbar-text me-3">
+                    Bienvenue, {{ session.admin_name }}
+                </span>
+                <a href="/logout" class="btn btn-outline-light">Déconnexion</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Statistiques -->
+            <div class="col-12 mb-4">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Opérateurs</h5>
+                                <h2 id="operatorsCount">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Employés</h5>
+                                <h2 id="employeesCount">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Projets</h5>
+                                <h2 id="projectsCount">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Écoles</h5>
+                                <h2 id="schoolsCount">0</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions rapides -->
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Actions rapides</h5>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#addOperatorModal">
+                            <i class="bx bx-plus"></i> Ajouter un opérateur
+                        </button>
+                        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addProjectModal">
+                            <i class="bx bx-plus"></i> Ajouter un projet
+                        </button>
+                        <button class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#addSchoolModal">
+                            <i class="bx bx-plus"></i> Ajouter une école
+                        </button>
+                        <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#addAdminModal">
+                            <i class="bx bx-plus"></i> Ajouter un administrateur
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tableaux de données -->
+            <div class="col-12">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#operators">Opérateurs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#employees">Employés</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#projects">Projets</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#schools">Écoles</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#stats">Statistiques</a>
+                    </li>
+                </ul>
+
+                <div class="tab-content mt-3">
+                    <!-- Opérateurs -->
+                    <div class="tab-pane fade show active" id="operators">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table" id="operatorsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Nom</th>
+                                                <th>Contact</th>
+                                                <th>Email</th>
+                                                <th>Type d'acteur</th>
+                                                <th>Projet</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Employés -->
+                    <div class="tab-pane fade" id="employees">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table" id="employeesTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Nom</th>
+                                                <th>Prénom</th>
+                                                <th>Contact</th>
+                                                <th>Poste</th>
+                                                <th>Région</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <!-- Projets -->
+                    <div class="tab-pane fade" id="projects">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table" id="projectsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Nom</th>
+                                                <th>Description</th>
+                                                <th>Date début</th>
+                                                <th>Date fin</th>
+                                                <th>Régions</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                 <!-- Écoles -->
+                 <div class="tab-pane fade" id="schools">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table" id="schoolsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Nom</th>
+                                            <th>Sigle</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                    <!-- Statistiques -->
+                    <div class="tab-pane fade" id="stats" role="tabpanel">
+                        <div class="container-fluid py-4">
+                            <!-- En-tête avec boutons d'export -->
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h3>Statistiques des Employés</h3>
+                                <div class="btn-group">
+                                    <button id="exportPNG" class="btn btn-outline-primary">
+                                        <i class="fas fa-file-image"></i> Exporter en PNG
+                                    </button>
+                                    <button id="exportPPT" class="btn btn-outline-success ms-2">
+                                        <i class="fas fa-file-powerpoint"></i> Exporter en PowerPoint
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Cartes de statistiques générales -->
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Total Employés</h5>
+                                            <h2 class="card-text" id="totalEmployees">0</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Âge Moyen</h5>
+                                            <h2 class="card-text" id="averageAge">0</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Ratio H/F</h5>
+                                            <h2 class="card-text" id="genderRatio">0%</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Ancienneté Moyenne</h5>
+                                            <h2 class="card-text" id="averageTenure">0</h2>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Première rangée de graphiques -->
+                            <div class="row mb-4">
+                                <!-- Distribution géographique -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Distribution Géographique</h5>
+                                            <div class="btn-group mb-3">
+                                                <button class="btn btn-sm btn-primary active" data-chart="region">Régions</button>
+                                                <button class="btn btn-sm btn-primary" data-chart="departement">Départements</button>
+                                                <button class="btn btn-sm btn-primary" data-chart="sous_prefecture">Sous-préfectures</button>
+                                            </div>
+                                            <div style="height: 300px;">
+                                                <canvas id="geoDistChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Distribution par poste -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Distribution par Poste</h5>
+                                            <div style="height: 300px;">
+                                                <canvas id="positionChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Deuxième rangée de graphiques -->
+                            <div class="row mb-4">
+                                <!-- Distribution par catégorie -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Distribution par Catégorie</h5>
+                                            <div style="height: 300px;">
+                                                <canvas id="categoryChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-4">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h5>Répartition par poste</h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="positionChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Distribution par diplôme -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Distribution par Diplôme</h5>
+                                            <div style="height: 300px;">
+                                                <canvas id="diplomaChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Troisième rangée de graphiques -->
+                            <div class="row">
+                                <!-- Distribution par genre -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Distribution par Genre</h5>
+                                            <div style="height: 300px;">
+                                                <canvas id="genderChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Distribution par âge -->
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h5 class="card-title">Distribution par Âge</h5>
+                                            <div style="height: 300px;">
+                                                <canvas id="ageChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals pour les formulaires -->
+    {% include 'admin/modals/operator_modal.html' %}
+    {% include 'admin/modals/project_modal.html' %}
+    {% include 'admin/modals/school_modal.html' %}
+    {% include 'admin/modals/admin_modal.html' %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.11.0/dist/pptxgen.bundle.js"></script>
+    <script src="{{ url_for('static', filename='js/admin/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/operators.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/projects.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/schools.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/admin/stats.js') }}"></script></body>
+</html>

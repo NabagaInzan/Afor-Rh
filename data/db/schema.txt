@@ -1,0 +1,288 @@
+CREATE TABLE users (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL,
+            email TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+
+CREATE TABLE operators (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            password TEXT NOT NULL,
+            contact1 TEXT,
+            contact2 TEXT,
+            address1 TEXT,
+            address2 TEXT,
+            email1 TEXT,
+            email2 TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        , acteur_type_id TEXT REFERENCES acteurs_type(id), project_id TEXT REFERENCES projects(id))
+
+CREATE TABLE action_logs (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            action TEXT NOT NULL,
+            target_table TEXT NOT NULL,
+            target_record_id TEXT,
+            action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+
+CREATE TABLE roles (
+            id TEXT PRIMARY KEY,
+            role_name TEXT NOT NULL,
+            description TEXT
+        )
+
+CREATE TRIGGER update_user_timestamp 
+        AFTER UPDATE ON users
+        BEGIN
+            UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END
+
+CREATE TRIGGER update_operator_timestamp 
+        AFTER UPDATE ON operators
+        BEGIN
+            UPDATE operators SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END
+
+CREATE TABLE administrators (
+                    phone TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    password TEXT NOT NULL,
+                    email TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+
+CREATE TABLE regions (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME
+)
+
+CREATE TABLE departements (
+    id TEXT PRIMARY KEY,
+    region_id TEXT NOT NULL,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+)
+
+CREATE TABLE sous_prefectures (
+    id TEXT PRIMARY KEY,
+    departement_id TEXT NOT NULL,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (departement_id) REFERENCES departements(id)
+)
+
+CREATE TABLE projects (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    description TEXT,
+    date_debut DATE,
+    date_fin DATE,
+    statut TEXT,
+    budget REAL,
+    region_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME,
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+)
+
+CREATE TABLE contracts (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    type TEXT,
+    start_date DATE,
+    end_date DATE,
+    salary REAL,
+    categorie TEXT,
+    position TEXT,
+    status TEXT,
+    additional_terms TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME, diplome_id INTEGER REFERENCES diplomes(id), ecoles_id INTEGER REFERENCES ecoles(id),
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+)
+
+CREATE TABLE acteurs_type (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME
+)
+
+CREATE TABLE project_regions (
+    project_id TEXT,
+    region_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, region_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+)
+
+CREATE TABLE employees (
+    id TEXT PRIMARY KEY,
+    operator_id TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    birth_date DATE,
+    gender TEXT,
+    position TEXT,
+    contact TEXT,
+    contract_duration INTEGER,
+    additional_info TEXT,
+    region_id TEXT,
+    departement_id TEXT,
+    sous_prefecture_id TEXT,
+    ecole_id TEXT,  -- Changé de ecole (texte) à ecole_id (référence)
+    diplome_id TEXT,
+    poste_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME,
+    deleted_at DATETIME, availability TEXT DEFAULT 'Au siège',
+    FOREIGN KEY (operator_id) REFERENCES operators(id),
+    FOREIGN KEY (region_id) REFERENCES regions(id),
+    FOREIGN KEY (departement_id) REFERENCES departements(id),
+    FOREIGN KEY (sous_prefecture_id) REFERENCES sous_prefectures(id),
+    FOREIGN KEY (ecole_id) REFERENCES ecoles(id),
+    FOREIGN KEY (diplome_id) REFERENCES diplomes(id),
+    FOREIGN KEY (poste_id) REFERENCES postes(id)
+)
+
+CREATE TABLE operator_projects (
+    operator_id TEXT,
+    project_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (operator_id, project_id),
+    FOREIGN KEY (operator_id) REFERENCES operators(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+)
+
+CREATE TABLE sqlite_sequence(name,seq)
+
+CREATE TABLE diplomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL UNIQUE
+        )
+
+CREATE TABLE ecoles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            sigle TEXT NOT NULL UNIQUE
+        )
+
+CREATE TABLE type_poste (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fonction TEXT NOT NULL
+)
+
+CREATE TABLE school_projects (
+	school_id INTEGER NOT NULL, 
+	project_id TEXT NOT NULL, 
+	created_at DATETIME, 
+	PRIMARY KEY (school_id, project_id), 
+	FOREIGN KEY(school_id) REFERENCES ecoles (id), 
+	FOREIGN KEY(project_id) REFERENCES projects (id)
+)
+
+CREATE TABLE superviseurs (
+	id TEXT NOT NULL, 
+	operator_id TEXT NOT NULL, 
+	first_name TEXT NOT NULL, 
+	last_name TEXT NOT NULL, 
+	birth_date DATE, 
+	gender TEXT, 
+	contact TEXT, 
+	email TEXT, 
+	position TEXT, 
+	niveau_supervision TEXT, 
+	zone_supervision TEXT, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	deleted_at DATETIME, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(operator_id) REFERENCES operators (id)
+)
+
+CREATE TABLE jobs (
+	id INTEGER NOT NULL, 
+	title VARCHAR(200) NOT NULL, 
+	description TEXT NOT NULL, 
+	requirements TEXT, 
+	location VARCHAR(100), 
+	salary_range VARCHAR(100), 
+	is_active BOOLEAN, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id)
+)
+
+CREATE TABLE employee_locations (
+	id VARCHAR NOT NULL, 
+	employee_id VARCHAR NOT NULL, 
+	contract_id VARCHAR NOT NULL, 
+	region_id VARCHAR NOT NULL, 
+	departement_id VARCHAR NOT NULL, 
+	sous_prefecture_id VARCHAR NOT NULL, 
+	date_debut DATE NOT NULL, 
+	date_fin DATE, 
+	motif_changement VARCHAR, 
+	created_at DATETIME DEFAULT (CURRENT_TIMESTAMP), 
+	updated_at DATETIME, 
+	deleted_at DATETIME, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(employee_id) REFERENCES employees (id), 
+	FOREIGN KEY(contract_id) REFERENCES contracts (id), 
+	FOREIGN KEY(region_id) REFERENCES regions (id), 
+	FOREIGN KEY(departement_id) REFERENCES departements (id), 
+	FOREIGN KEY(sous_prefecture_id) REFERENCES sous_prefectures (id)
+)
+
+CREATE TABLE applications (
+	id INTEGER NOT NULL, 
+	operator_id VARCHAR NOT NULL, 
+	job_id INTEGER NOT NULL, 
+	status VARCHAR(20), 
+	cover_letter TEXT, 
+	created_at DATETIME, 
+	updated_at DATETIME, 
+	PRIMARY KEY (id), 
+	FOREIGN KEY(operator_id) REFERENCES operators (id), 
+	FOREIGN KEY(job_id) REFERENCES jobs (id)
+)
+
+CREATE TABLE "postes" (
+                id TEXT PRIMARY KEY,
+                titre TEXT NOT NULL,
+                description TEXT,
+                niveau_experience TEXT,
+                responsabilites TEXT,
+                competences_requises TEXT,
+                departement TEXT,
+                statut TEXT DEFAULT 'Actif',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME,
+                deleted_at DATETIME,
+                type_poste_id INTEGER REFERENCES type_poste(id)
+            )
+

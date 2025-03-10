@@ -1,0 +1,45 @@
+<!-- Modal Ajout/Modification Projet -->
+<div class="modal fade" id="addProjectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un projet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="projectForm">
+                    <input type="hidden" id="projectId">
+                    <div class="mb-3">
+                        <label for="projectName" class="form-label">Nom</label>
+                        <input type="text" class="form-control" id="projectName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="projectDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="projectDescription" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="projectStartDate" class="form-label">Date de début</label>
+                        <input type="date" class="form-control" id="projectStartDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="projectEndDate" class="form-label">Date de fin</label>
+                        <input type="date" class="form-control" id="projectEndDate" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="projectRegions" class="form-label">Régions</label>
+                        <select class="form-select" id="projectRegions" multiple required>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="projectBudget" class="form-label">Budget</label>
+                        <input type="number" class="form-control" id="projectBudget">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveProject">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>

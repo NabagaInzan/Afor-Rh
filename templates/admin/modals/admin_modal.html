@@ -1,0 +1,35 @@
+<!-- Modal Ajout/Modification Administrateur -->
+<div class="modal fade" id="addAdminModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Ajouter un administrateur</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="adminForm">
+                    <div class="mb-3">
+                        <label for="adminName" class="form-label">Nom</label>
+                        <input type="text" class="form-control" id="adminName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminPhone" class="form-label">Téléphone</label>
+                        <input type="tel" class="form-control" id="adminPhone" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="adminEmail" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="adminPassword" class="form-label">Mot de passe</label>
+                        <input type="password" class="form-control" id="adminPassword" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveAdmin">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+</div>
